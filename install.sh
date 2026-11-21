@@ -5,38 +5,36 @@
 #     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
 #
 # Biến: PANEL_URL, TOKEN (token giấy phép), NODE_ID, API_PORT (mặc định 10085),
-#       BIN_URL (nguồn tải binary levals-node), XRAY_VER (mặc định latest).
+#       BASE (nguồn tải, mặc định Release của levals-node-dist).
 set -e
 [ "$(id -u)" = 0 ] || { echo "Chạy bằng root."; exit 1; }
 
 API_PORT=${API_PORT:-10085}
-ASSETS=/usr/local/share/xray
+LIB=/usr/local/lib/levals-node
+GEO="$LIB/geo"
 CFG=/etc/levals-node
-BIN_URL=${BIN_URL:-https://github.com/harryngne/levals-node-dist/releases/latest/download}
+BASE=${BASE:-https://github.com/harryngne/levals-node-dist/releases/latest/download}
 
 say(){ echo -e "\n== $*"; }
 need(){ command -v "$1" >/dev/null || { apt-get update -qq && apt-get install -y -qq "$2" || yum install -y -q "$2"; }; }
-need curl curl; need unzip unzip
+need curl curl
 
 case "$(uname -m)" in
-  x86_64|amd64) XARCH=64; NARCH=x86_64 ;;
-  aarch64|arm64) XARCH=arm64-v8a; NARCH=aarch64 ;;
+  x86_64|amd64) NARCH=x86_64 ;;
+  aarch64|arm64) NARCH=aarch64 ;;
   *) echo "Kiến trúc $(uname -m) chưa hỗ trợ"; exit 1 ;;
 esac
 
-say "Tải xray-core gốc (XTLS/Xray-core)"
-mkdir -p "$ASSETS" /tmp/lx
-XURL="https://github.com/XTLS/Xray-core/releases/${XRAY_VER:+download/$XRAY_VER}${XRAY_VER:-latest/download}/Xray-linux-$XARCH.zip"
-curl -fL --retry 3 -o /tmp/lx/xray.zip "$XURL"
-unzip -o -q /tmp/lx/xray.zip -d /tmp/lx
-install -m 0755 /tmp/lx/xray /usr/local/bin/xray
-[ -f /tmp/lx/geoip.dat ] && cp -f /tmp/lx/geoip.dat "$ASSETS/"
-[ -f /tmp/lx/geosite.dat ] && cp -f /tmp/lx/geosite.dat "$ASSETS/"
-rm -rf /tmp/lx
-
 say "Tải levals-node"
-curl -fL --retry 3 -o /usr/local/bin/levals-node "$BIN_URL/levals-node-linux-$NARCH"
+mkdir -p "$LIB" "$GEO"
+curl -fL --retry 3 -o /usr/local/bin/levals-node "$BASE/levals-node-linux-$NARCH"
 chmod +x /usr/local/bin/levals-node
+
+say "Tải lõi mạng + dữ liệu định tuyến"
+curl -fL --retry 3 -o "$LIB/lvcore" "$BASE/lvcore-$NARCH"
+chmod +x "$LIB/lvcore"
+curl -fL --retry 3 -o "$GEO/geoip.dat"   "$BASE/geoip.dat"
+curl -fL --retry 3 -o "$GEO/geosite.dat" "$BASE/geosite.dat"
 
 say "Cấu hình"
 mkdir -p "$CFG"
@@ -47,10 +45,10 @@ panel:
   url: "$PANEL_URL"
   token: "$TOKEN"
   node_id: $NODE_ID
-xray:
-  bin: "/usr/local/bin/xray"
+core:
+  bin: "$LIB/lvcore"
   api_port: $API_PORT
-  assets_dir: "$ASSETS"
+  assets_dir: "$GEO"
 config_dir: "$CFG"
 log:
   level: "info"
@@ -63,7 +61,7 @@ fi
 say "Dịch vụ systemd"
 cat > /etc/systemd/system/levals-node.service <<UNIT
 [Unit]
-Description=levals-node (xray)
+Description=levals-node
 After=network.target
 
 [Service]
