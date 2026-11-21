@@ -1,0 +1,25 @@
+levals-node
+Copyright (c) 2026 harryngne (Levals)
+
+Phần mềm này là tác phẩm độc lập, được viết mới bằng Rust. Nó KHÔNG chứa mã nguồn
+của các dự án dưới đây; chỉ tham khảo hành vi/giao thức và chạy các chương trình gốc
+dưới dạng tiến trình riêng.
+
+────────────────────────────────────────────────────────────────────────────
+Tham khảo thiết kế / giao thức
+────────────────────────────────────────────────────────────────────────────
+• Xboard-Node — https://github.com/cedar2025/Xboard-Node  (MPL-2.0)
+  Giao thức panel (UniProxy REST + WebSocket) và cách sinh cấu hình được tham
+  khảo từ dự án này. Không có dòng mã Go nào của Xboard-Node được sao chép vào đây.
+
+────────────────────────────────────────────────────────────────────────────
+Chương trình chạy riêng (tải độc lập, KHÔNG nhúng vào levals-node)
+────────────────────────────────────────────────────────────────────────────
+• Xray-core — https://github.com/XTLS/Xray-core  (MPL-2.0)
+  levals-node khởi chạy binary xray gốc như một tiến trình con và điều khiển qua
+  gRPC API công khai của nó. xray-core được cài riêng bởi script cài đặt; mã nguồn
+  của xray-core có sẵn công khai tại địa chỉ trên. levals-node không chứa, không
+  sửa, không phân phối lại mã nguồn hay bản dựng của xray-core.
+
+levals-node KHÔNG dùng sing-box (GPL-3.0) hay bất kỳ thành phần copyleft mạnh nào,
+nên bản thân levals-node có thể phân phối dưới dạng đóng.

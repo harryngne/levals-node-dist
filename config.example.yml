@@ -1,0 +1,17 @@
+# Cấu hình levals-node
+# Chép thành /etc/levals-node/config.yml rồi điền token giấy phép.
+
+panel:
+  url: "https://dash.levals.org"   # địa chỉ panel levals
+  token: "DÁN_TOKEN_GIẤY_PHÉP"      # token do admin tạo (có thời hạn)
+  node_id: 1                        # ID node trên panel
+
+xray:
+  bin: "/usr/local/bin/xray"        # binary xray gốc (install.sh tự tải)
+  api_port: 10085                   # cổng gRPC nội bộ (chỉ 127.0.0.1)
+  assets_dir: "/usr/local/share/xray"
+
+config_dir: "/etc/levals-node"      # nơi ghi xray.json sinh ra + custom.json
+
+log:
+  level: "info"                     # trace|debug|info|warn|error
