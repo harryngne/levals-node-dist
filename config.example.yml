@@ -3,8 +3,10 @@
 
 panel:
   url: "https://dash.levals.org"   # địa chỉ panel levals
-  token: "DÁN_TOKEN_GIẤY_PHÉP"      # token do admin tạo (có thời hạn)
-  node_id: 1                        # ID node trên panel
+  token: "DÁN_TOKEN"                # node đơn: token node/giấy phép · machine: token máy
+  node_id: 1                        # node đơn: ID node trên panel
+  # Chế độ machine (một máy chạy nhiều node) — dùng machine_id THAY cho node_id:
+  # machine_id: 1
 
 core:
   bin: "/usr/local/lib/levals-node/lvcore"   # lõi mạng (install.sh tự đặt)

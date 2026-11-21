@@ -39,12 +39,20 @@ curl -fL --retry 3 -o "$GEO/geosite.dat" "$BASE/geosite.dat"
 say "Cấu hình"
 mkdir -p "$CFG"
 if [ ! -f "$CFG/config.yml" ]; then
-  : "${PANEL_URL:?Thiếu PANEL_URL}" "${TOKEN:?Thiếu TOKEN}" "${NODE_ID:?Thiếu NODE_ID}"
+  : "${PANEL_URL:?Thiếu PANEL_URL}" "${TOKEN:?Thiếu TOKEN}"
+  # Node đơn: NODE_ID. Chế độ machine (một máy nhiều node): MACHINE_ID.
+  if [ -n "${MACHINE_ID:-}" ]; then
+    IDLINE="  machine_id: $MACHINE_ID"
+  elif [ -n "${NODE_ID:-}" ]; then
+    IDLINE="  node_id: $NODE_ID"
+  else
+    echo "Thiếu NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine)"; exit 1
+  fi
   cat > "$CFG/config.yml" <<YML
 panel:
   url: "$PANEL_URL"
   token: "$TOKEN"
-  node_id: $NODE_ID
+$IDLINE
 core:
   bin: "$LIB/lvcore"
   api_port: $API_PORT
