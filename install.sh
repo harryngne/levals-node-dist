@@ -1,7 +1,7 @@
 #!/bin/bash
 # levals-node · cài đặt (chạy bằng root). Chạy lại nhiều lần được.
 #
-#   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node/public/install.sh | \
+#   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
 #     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
 #
 # Biến: PANEL_URL, TOKEN (token giấy phép), NODE_ID, API_PORT (mặc định 10085),
