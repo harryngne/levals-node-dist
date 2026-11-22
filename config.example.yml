@@ -8,6 +8,17 @@ panel:
   # Chế độ machine (một máy chạy nhiều node) — dùng machine_id THAY cho node_id:
   # machine_id: 1
 
+# Nhiều panel trên cùng một máy (tuỳ chọn): khai báo `panels:` THAY cho `panel:`.
+# Mỗi panel chạy độc lập (thư mục + cổng điều khiển riêng); nhớ đặt cổng node (server_port)
+# khác nhau giữa các panel để không đụng nhau.
+# panels:
+#   - url: "https://dash.levals.org"
+#     token: "TOKEN_PANEL_1"
+#     node_id: 1
+#   - url: "https://panel2.example.com"
+#     token: "TOKEN_PANEL_2"
+#     machine_id: 3
+
 core:
   bin: "/usr/local/lib/levals-node/lvcore"   # lõi mạng (install.sh tự đặt)
   api_port: 10085                            # cổng điều khiển nội bộ (chỉ 127.0.0.1)
@@ -18,7 +29,13 @@ config_dir: "/etc/levals-node"      # nơi ghi core.json sinh ra + custom.json
 log:
   level: "info"                     # trace|debug|info|warn|error
 
-# DNS-01 qua Cloudflare (tuỳ chọn, cho cert_mode: dns / wildcard / không cần cổng 80):
+# DNS-01 (tuỳ chọn): nên đặt NGAY TRONG PANEL (ô "Nhà cung cấp DNS" + biến KEY=VALUE),
+# node tự nhận — không cần sửa file này. Chỉ dùng mục dưới nếu muốn đặt token tại máy.
+# Nhà cung cấp hỗ trợ + biến cần nhập ở panel:
+#   cloudflare : CF_DNS_API_TOKEN     (token quyền Edit DNS cho zone)
+#   dnspod     : DP_Id  +  DP_Key
+#   aliyun     : Ali_Key  +  Ali_Secret
+#   gcore      : GCORE_API_TOKEN
 # acme:
 #   dns_provider: "cloudflare"
-#   cf_token: "CLOUDFLARE_API_TOKEN"   # quyền Edit DNS cho zone
+#   cf_token: "CLOUDFLARE_API_TOKEN"
