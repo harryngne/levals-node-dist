@@ -18,6 +18,8 @@ BASE=${BASE:-https://github.com/harryngne/levals-node-dist/releases/latest/downl
 say(){ echo -e "\n== $*"; }
 need(){ command -v "$1" >/dev/null || { apt-get update -qq && apt-get install -y -qq "$2" || yum install -y -q "$2"; }; }
 need curl curl
+# Tải ra file tạm rồi đổi tên (tránh "Text file busy" khi ghi đè binary đang chạy).
+dl(){ curl -fL --retry 3 -o "$2.new" "$1" && mv -f "$2.new" "$2"; }
 
 case "$(uname -m)" in
   x86_64|amd64) NARCH=x86_64 ;;
@@ -27,14 +29,14 @@ esac
 
 say "Tải levals-node"
 mkdir -p "$LIB" "$GEO"
-curl -fL --retry 3 -o /usr/local/bin/levals-node "$BASE/levals-node-linux-$NARCH"
+dl "$BASE/levals-node-linux-$NARCH" /usr/local/bin/levals-node
 chmod +x /usr/local/bin/levals-node
 
 say "Tải lõi mạng + dữ liệu định tuyến"
-curl -fL --retry 3 -o "$LIB/lvcore" "$BASE/lvcore-$NARCH"
+dl "$BASE/lvcore-$NARCH" "$LIB/lvcore"
 chmod +x "$LIB/lvcore"
-curl -fL --retry 3 -o "$GEO/geoip.dat"   "$BASE/geoip.dat"
-curl -fL --retry 3 -o "$GEO/geosite.dat" "$BASE/geosite.dat"
+dl "$BASE/geoip.dat"   "$GEO/geoip.dat"
+dl "$BASE/geosite.dat" "$GEO/geosite.dat"
 
 say "Cấu hình"
 mkdir -p "$CFG"
@@ -87,7 +89,7 @@ systemctl enable -q --now levals-node
 systemctl restart levals-node
 
 say "Lệnh quản lý: lvnode"
-curl -fsSL "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode" -o /usr/local/bin/lvnode 2>/dev/null \
+dl "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode" /usr/local/bin/lvnode 2>/dev/null \
   && chmod +x /usr/local/bin/lvnode \
   && echo "   Dùng: lvnode status | log | restart | update | config | uninstall" \
   || echo "   (không tải được lvnode, bỏ qua)"
