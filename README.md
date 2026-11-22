@@ -24,14 +24,14 @@ và dán khoá API, rồi **Lưu**. Node tự lấy chứng chỉ Let's Encrypt,
 
 ## Engine thuần Rust (tùy chọn, không cần lvcore)
 Đặt `ENGINE=native` để node tự phục vụ bằng Rust, tự chọn theo giao thức node:
-**trojan** (TCP-TLS + WebSocket), **shadowsocks** (AEAD + 2022-blake3),
-**socks5** (+UDP), **http** — relay TCP/UDP, đếm lưu lượng + IP online như thường.
+**trojan**/**vless** (TCP-TLS + WebSocket), **vmess**, **shadowsocks** (AEAD + 2022-blake3),
+**socks5** (+UDP), **http**, **tuic**, **hysteria2** (QUIC) — relay TCP/UDP, đếm lưu lượng + IP online như thường.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
   PANEL_URL=https://dash.levals.org TOKEN=<token> NODE_ID=1 ENGINE=native bash
 ```
 Hoặc sửa `core.engine: native` trong `/etc/levals-node/config.yml` (`lvnode config`).
-Giao thức khác (vmess/vless/hysteria2/tuic…) hiện vẫn dùng `xray` (mặc định).
+Giao thức khác (anytls/naive, XTLS Vision/Reality…) hiện vẫn dùng `xray` (mặc định).
 
 ## Nhiều panel trên một máy (nâng cao)
 Khai báo `panels:` thay cho `panel:` trong `/etc/levals-node/config.yml` (`lvnode config`),
