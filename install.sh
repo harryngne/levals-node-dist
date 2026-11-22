@@ -6,7 +6,8 @@
 #
 # Biến: PANEL_URL, TOKEN, NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine),
 #       API_PORT (10085), ACME_STAGING=1 (test Let's Encrypt staging), BASE,
-#       ENGINE=xray|trojan (mặc định xray; trojan = engine Trojan thuần Rust).
+#       ENGINE=xray|native (mặc định xray; native = engine thuần Rust:
+#               trojan / shadowsocks(AEAD) / socks / http — tự chọn theo giao thức node).
 set -eo pipefail
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; NC='\033[0m'

@@ -22,14 +22,16 @@ và dán khoá API, rồi **Lưu**. Node tự lấy chứng chỉ Let's Encrypt,
 - **Aliyun (AliDNS)**: `Ali_Key` + `Ali_Secret`
 - **Gcore**: `GCORE_API_TOKEN`
 
-## Engine Trojan thuần Rust (tùy chọn)
-Với node giao thức **trojan**, có thể chạy engine Trojan viết bằng Rust (không cần lvcore):
-TLS bằng cert ACME, relay TCP/UDP, đếm lưu lượng + IP online như thường. Khi cài thêm `ENGINE=trojan`:
+## Engine thuần Rust (tùy chọn, không cần lvcore)
+Đặt `ENGINE=native` để node tự phục vụ bằng Rust, tự chọn theo giao thức node:
+**trojan**, **shadowsocks** (AEAD: aes-256-gcm/aes-128-gcm/chacha20-ietf-poly1305),
+**socks5**, **http** — relay TCP/UDP, đếm lưu lượng + IP online như thường.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-  PANEL_URL=https://dash.levals.org TOKEN=<token> NODE_ID=1 ENGINE=trojan bash
+  PANEL_URL=https://dash.levals.org TOKEN=<token> NODE_ID=1 ENGINE=native bash
 ```
-Hoặc sửa `core.engine: trojan` trong `/etc/levals-node/config.yml` (`lvnode config`).
+Hoặc sửa `core.engine: native` trong `/etc/levals-node/config.yml` (`lvnode config`).
+Giao thức khác (vmess/vless/hysteria2/tuic…) hiện vẫn dùng `xray` (mặc định).
 
 ## Nhiều panel trên một máy (nâng cao)
 Khai báo `panels:` thay cho `panel:` trong `/etc/levals-node/config.yml` (`lvnode config`),
