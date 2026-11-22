@@ -74,6 +74,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/local/bin/levals-node -c $CFG/config.yml
+${ACME_STAGING:+Environment=LEVALS_ACME_STAGING=1}
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576
