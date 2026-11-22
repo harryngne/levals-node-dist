@@ -39,7 +39,10 @@ case "$1" in
   status)   echo -n "levals-node: "; st; systemctl status "$SVC" --no-pager -l 2>/dev/null | sed -n '1,6p' ;;
   log)      journalctl -u "$SVC" -f --no-hostname ;;
   access)   [ -f "$ACCESS" ] && tail -f "$ACCESS" || echo "Chưa có $ACCESS (chưa có client nào kết nối)." ;;
-  config)   need_root; "${EDITOR:-nano}" "$CFG" && { echo "Đã sửa — khởi động lại để áp dụng?"; read -rp "[y/N] " a; [ "$a" = y ] && systemctl restart "$SVC"; } ;;
+  config)   need_root
+    ED="${EDITOR:-}"; [ -z "$ED" ] && for e in nano vi vim; do command -v "$e" >/dev/null 2>&1 && { ED="$e"; break; }; done
+    [ -z "$ED" ] && { echo "Không có trình soạn thảo (nano/vi/vim). Sửa thủ công: $CFG"; exit 1; }
+    "$ED" "$CFG" && { read -rp "Khởi động lại để áp dụng? [y/N] " a; [ "$a" = y ] && systemctl restart "$SVC"; } ;;
   version)  /usr/local/bin/levals-node --version 2>/dev/null; echo -n "lõi: "; /usr/local/lib/levals-node/lvcore version 2>/dev/null | head -1 ;;
   speedtest)
     if command -v speedtest >/dev/null; then speedtest
@@ -58,7 +61,7 @@ case "$1" in
     cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
     qd=$(sysctl -n net.core.default_qdisc 2>/dev/null)
     if [ "$cc" = bbr ]; then echo -e "${GRN}BBR đã bật${NC} (congestion=$cc, qdisc=$qd)"; else echo -e "${YEL}Chưa bật được BBR${NC} (congestion=$cc). Kernel có thể quá cũ — cần >= 4.9."; fi ;;
-  update)   need_root; echo "Cập nhật levals-node…"; curl -fsSL "$BASE/install.sh" | bash; ;;
+  update)   need_root; echo "Cập nhật levals-node…"; curl -fsSL "$BASE/install.sh?$(date +%s)" | bash; ;;
   uninstall) need_root; curl -fsSL "$BASE/uninstall.sh" | bash ;;
   ""|-h|--help|help) echo -n "Trạng thái: "; st; echo; usage ;;
   *) echo -e "${YEL}Lệnh không rõ: $1${NC}"; usage; exit 1 ;;
