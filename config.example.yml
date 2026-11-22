@@ -17,3 +17,8 @@ config_dir: "/etc/levals-node"      # nơi ghi core.json sinh ra + custom.json
 
 log:
   level: "info"                     # trace|debug|info|warn|error
+
+# DNS-01 qua Cloudflare (tuỳ chọn, cho cert_mode: dns / wildcard / không cần cổng 80):
+# acme:
+#   dns_provider: "cloudflare"
+#   cf_token: "CLOUDFLARE_API_TOKEN"   # quyền Edit DNS cho zone
