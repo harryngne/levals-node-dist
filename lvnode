@@ -15,12 +15,15 @@ cat <<USAGE
 lvnode · quản lý levals-node
 
   lvnode start | stop | restart     Khởi động / dừng / khởi động lại
+  lvnode reload                     Nạp lại cấu hình (đọc lại config.yml)
   lvnode status                     Trạng thái dịch vụ
   lvnode enable | disable           Bật / tắt tự chạy khi khởi động máy
   lvnode log                        Xem log agent (journalctl -f)
   lvnode access                     Xem access log (client kết nối)
   lvnode config                     Sửa file cấu hình
   lvnode version                    Phiên bản levals-node + lõi
+  lvnode speedtest                  Đo tốc độ mạng của node
+  lvnode bbr                        Bật tăng tốc mạng BBR + fq
   lvnode update                     Cập nhật levals-node mới nhất
   lvnode uninstall                  Gỡ levals-node
 USAGE
@@ -30,6 +33,7 @@ case "$1" in
   start)    need_root; systemctl start  "$SVC"; echo -n "levals-node: "; st ;;
   stop)     need_root; systemctl stop   "$SVC"; echo -n "levals-node: "; st ;;
   restart)  need_root; systemctl restart "$SVC"; echo -n "levals-node: "; st ;;
+  reload)   need_root; echo "Nạp lại cấu hình…"; systemctl restart "$SVC"; echo -n "levals-node: "; st ;;
   enable)   need_root; systemctl enable  "$SVC"; echo "Đã bật tự chạy khi khởi động." ;;
   disable)  need_root; systemctl disable "$SVC"; echo "Đã tắt tự chạy khi khởi động." ;;
   status)   echo -n "levals-node: "; st; systemctl status "$SVC" --no-pager -l 2>/dev/null | sed -n '1,6p' ;;
@@ -37,6 +41,23 @@ case "$1" in
   access)   [ -f "$ACCESS" ] && tail -f "$ACCESS" || echo "Chưa có $ACCESS (chưa có client nào kết nối)." ;;
   config)   need_root; "${EDITOR:-nano}" "$CFG" && { echo "Đã sửa — khởi động lại để áp dụng?"; read -rp "[y/N] " a; [ "$a" = y ] && systemctl restart "$SVC"; } ;;
   version)  /usr/local/bin/levals-node --version 2>/dev/null; echo -n "lõi: "; /usr/local/lib/levals-node/lvcore version 2>/dev/null | head -1 ;;
+  speedtest)
+    if command -v speedtest >/dev/null; then speedtest
+    elif command -v speedtest-cli >/dev/null; then speedtest-cli
+    else
+      echo "Cài speedtest-cli…"
+      (apt-get update -qq && apt-get install -y -qq speedtest-cli) >/dev/null 2>&1 || yum install -y -q speedtest-cli >/dev/null 2>&1 || pip3 install -q speedtest-cli >/dev/null 2>&1
+      command -v speedtest-cli >/dev/null && speedtest-cli || echo -e "${RED}Không cài được speedtest-cli${NC}"
+    fi ;;
+  bbr)
+    need_root
+    grep -q "^net.core.default_qdisc" /etc/sysctl.conf 2>/dev/null && sed -i "s/^net.core.default_qdisc.*/net.core.default_qdisc=fq/" /etc/sysctl.conf || echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+    grep -q "^net.ipv4.tcp_congestion_control" /etc/sysctl.conf 2>/dev/null && sed -i "s/^net.ipv4.tcp_congestion_control.*/net.ipv4.tcp_congestion_control=bbr/" /etc/sysctl.conf || echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    modprobe tcp_bbr 2>/dev/null || true
+    sysctl -p >/dev/null 2>&1
+    cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+    qd=$(sysctl -n net.core.default_qdisc 2>/dev/null)
+    if [ "$cc" = bbr ]; then echo -e "${GRN}BBR đã bật${NC} (congestion=$cc, qdisc=$qd)"; else echo -e "${YEL}Chưa bật được BBR${NC} (congestion=$cc). Kernel có thể quá cũ — cần >= 4.9."; fi ;;
   update)   need_root; echo "Cập nhật levals-node…"; curl -fsSL "$BASE/install.sh" | bash; ;;
   uninstall) need_root; curl -fsSL "$BASE/uninstall.sh" | bash ;;
   ""|-h|--help|help) echo -n "Trạng thái: "; st; echo; usage ;;
