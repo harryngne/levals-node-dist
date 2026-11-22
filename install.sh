@@ -5,7 +5,8 @@
 #     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
 #
 # Biến: PANEL_URL, TOKEN, NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine),
-#       API_PORT (10085), ACME_STAGING=1 (test Let's Encrypt staging), BASE.
+#       API_PORT (10085), ACME_STAGING=1 (test Let's Encrypt staging), BASE,
+#       ENGINE=xray|trojan (mặc định xray; trojan = engine Trojan thuần Rust).
 set -eo pipefail
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; NC='\033[0m'
@@ -81,12 +82,14 @@ if [ ! -f "$CFG/config.yml" ]; then
   else
     err "Thiếu NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine)."
   fi
+  ENGINE_LINE="  engine: \"${ENGINE:-xray}\""
   cat > "$CFG/config.yml" <<YML
 panel:
   url: "$PANEL_URL"
   token: "$TOKEN"
 $IDLINE
 core:
+$ENGINE_LINE
   bin: "$LIB/lvcore"
   api_port: $API_PORT
   assets_dir: "$GEO"

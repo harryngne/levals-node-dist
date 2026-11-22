@@ -20,9 +20,13 @@ panel:
 #     machine_id: 3
 
 core:
-  bin: "/usr/local/lib/levals-node/lvcore"   # lõi mạng (install.sh tự đặt)
+  engine: "xray"                             # "xray" (mặc định) hoặc "trojan" (engine Trojan thuần Rust)
+  bin: "/usr/local/lib/levals-node/lvcore"   # lõi mạng (chỉ dùng khi engine=xray)
   api_port: 10085                            # cổng điều khiển nội bộ (chỉ 127.0.0.1)
   assets_dir: "/usr/local/lib/levals-node/geo"
+# engine: "trojan" → node tự phục vụ giao thức Trojan-TLS bằng Rust (không cần lvcore),
+#   dùng chứng chỉ ACME như trên. Chỉ cho node giao thức trojan, node đơn (node_id).
+#   Có thể ép bằng biến môi trường: LEVALS_ENGINE=trojan
 
 config_dir: "/etc/levals-node"      # nơi ghi core.json sinh ra + custom.json
 
