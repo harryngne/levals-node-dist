@@ -4,10 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
 #     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
 #
-# Biến: PANEL_URL, TOKEN, NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine),
-#       API_PORT (10085), ACME_STAGING=1 (test Let's Encrypt staging), BASE,
-#       ENGINE=xray|native (mặc định xray; native = engine thuần Rust:
-#               trojan / shadowsocks(AEAD) / socks / http — tự chọn theo giao thức node).
+# Biến: PANEL_URL, TOKEN, NODE_ID (node đơn),
+#       ACME_STAGING=1 (test Let's Encrypt staging), BASE.
+# Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
 set -eo pipefail
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; NC='\033[0m'
@@ -65,11 +64,7 @@ dl "$BASE/levals-node-linux-$NARCH" /usr/local/bin/levals-node
 chmod +x /usr/local/bin/levals-node
 ok "levals-node $(/usr/local/bin/levals-node --version 2>/dev/null | awk '{print $2}')"
 
-info "Tải lõi mạng + dữ liệu định tuyến"
-dl "$BASE/lvcore-$NARCH" "$LIB/lvcore"; chmod +x "$LIB/lvcore"
-dl "$BASE/geoip.dat"   "$GEO/geoip.dat"
-dl "$BASE/geosite.dat" "$GEO/geosite.dat"
-ok "lõi + geoip/geosite"
+# Engine native thuần Rust — không cần lõi ngoài.
 
 # ── Cấu hình ──
 info "Cấu hình"
@@ -83,17 +78,13 @@ if [ ! -f "$CFG/config.yml" ]; then
   else
     err "Thiếu NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine)."
   fi
-  ENGINE_LINE="  engine: \"${ENGINE:-xray}\""
   cat > "$CFG/config.yml" <<YML
 panel:
   url: "$PANEL_URL"
   token: "$TOKEN"
 $IDLINE
 core:
-$ENGINE_LINE
-  bin: "$LIB/lvcore"
-  api_port: $API_PORT
-  assets_dir: "$GEO"
+  engine: native
 config_dir: "$CFG"
 log:
   level: "info"
