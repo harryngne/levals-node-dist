@@ -1,0 +1,44 @@
+#!/bin/bash
+# lvnode · quản lý levals-node (giống lệnh XrayR)
+SVC=levals-node
+CFG=/etc/levals-node/config.yml
+ACCESS=/etc/levals-node/access.log
+BASE=https://raw.githubusercontent.com/harryngne/levals-node-dist/main
+RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; NC='\033[0m'
+
+need_root(){ [ "$(id -u)" = 0 ] || { echo -e "${RED}Cần chạy bằng root.${NC}"; exit 1; }; }
+
+st(){ systemctl is-active --quiet "$SVC" && echo -e "${GRN}đang chạy${NC}" || echo -e "${RED}đã dừng${NC}"; }
+
+usage(){
+cat <<USAGE
+lvnode · quản lý levals-node
+
+  lvnode start | stop | restart     Khởi động / dừng / khởi động lại
+  lvnode status                     Trạng thái dịch vụ
+  lvnode enable | disable           Bật / tắt tự chạy khi khởi động máy
+  lvnode log                        Xem log agent (journalctl -f)
+  lvnode access                     Xem access log (client kết nối)
+  lvnode config                     Sửa file cấu hình
+  lvnode version                    Phiên bản levals-node + lõi
+  lvnode update                     Cập nhật levals-node mới nhất
+  lvnode uninstall                  Gỡ levals-node
+USAGE
+}
+
+case "$1" in
+  start)    need_root; systemctl start  "$SVC"; echo -n "levals-node: "; st ;;
+  stop)     need_root; systemctl stop   "$SVC"; echo -n "levals-node: "; st ;;
+  restart)  need_root; systemctl restart "$SVC"; echo -n "levals-node: "; st ;;
+  enable)   need_root; systemctl enable  "$SVC"; echo "Đã bật tự chạy khi khởi động." ;;
+  disable)  need_root; systemctl disable "$SVC"; echo "Đã tắt tự chạy khi khởi động." ;;
+  status)   echo -n "levals-node: "; st; systemctl status "$SVC" --no-pager -l 2>/dev/null | sed -n '1,6p' ;;
+  log)      journalctl -u "$SVC" -f --no-hostname ;;
+  access)   [ -f "$ACCESS" ] && tail -f "$ACCESS" || echo "Chưa có $ACCESS (chưa có client nào kết nối)." ;;
+  config)   need_root; "${EDITOR:-nano}" "$CFG" && { echo "Đã sửa — khởi động lại để áp dụng?"; read -rp "[y/N] " a; [ "$a" = y ] && systemctl restart "$SVC"; } ;;
+  version)  /usr/local/bin/levals-node --version 2>/dev/null; echo -n "lõi: "; /usr/local/lib/levals-node/lvcore version 2>/dev/null | head -1 ;;
+  update)   need_root; echo "Cập nhật levals-node…"; curl -fsSL "$BASE/install.sh" | bash; ;;
+  uninstall) need_root; curl -fsSL "$BASE/uninstall.sh" | bash ;;
+  ""|-h|--help|help) echo -n "Trạng thái: "; st; echo; usage ;;
+  *) echo -e "${YEL}Lệnh không rõ: $1${NC}"; usage; exit 1 ;;
+esac

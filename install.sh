@@ -86,4 +86,10 @@ systemctl daemon-reload
 systemctl enable -q --now levals-node
 systemctl restart levals-node
 
-say "Xong. Xem log: journalctl -u levals-node -f"
+say "Lệnh quản lý: lvnode"
+curl -fsSL "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode" -o /usr/local/bin/lvnode 2>/dev/null \
+  && chmod +x /usr/local/bin/lvnode \
+  && echo "   Dùng: lvnode status | log | restart | update | config | uninstall" \
+  || echo "   (không tải được lvnode, bỏ qua)"
+
+say "Xong. Quản lý bằng: lvnode   ·   Log: lvnode log"
