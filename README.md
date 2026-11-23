@@ -14,6 +14,16 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
 - Xem log: `journalctl -u levals-node -f`
 - Cập nhật: `lvnode update`
 
+### Panel khác levals (xboard / v2board)
+Mặc định nhận panel **levals**. Dùng panel khác thì khai báo loại + node_type:
+```bash
+curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
+  PANEL_URL=https://your-panel TOKEN=<token> NODE_ID=1 \
+  PANEL_KIND=xboard NODE_TYPE=vless bash
+```
+- `PANEL_KIND`: `levals` (mặc định) | `xboard` | `v2board`.
+- `NODE_TYPE`: bắt buộc cho xboard/v2board — `shadowsocks|vmess|trojan|vless|hysteria|tuic`.
+
 ## Giao thức & transport
 Engine native thuần Rust phục vụ trực tiếp, tự chọn theo giao thức node:
 **trojan**, **vless** (REALITY + X25519MLKEM768, XTLS Vision, hoặc TLS thường),

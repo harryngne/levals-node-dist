@@ -4,8 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
 #     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
 #
-# Biến: PANEL_URL, TOKEN, NODE_ID (node đơn),
-#       ACME_STAGING=1 (test Let's Encrypt staging), BASE.
+# Biến: PANEL_URL, TOKEN, NODE_ID, ACME_STAGING=1 (test Let's Encrypt staging), BASE,
+#       PANEL_KIND=levals|xboard|v2board (mặc định levals — nhận dạng loại panel),
+#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic (cần cho xboard/v2board).
 # Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
 set -eo pipefail
 
@@ -71,18 +72,23 @@ info "Cấu hình"
 if [ ! -f "$CFG/config.yml" ]; then
   [ -n "${PANEL_URL:-}" ] || err "Thiếu PANEL_URL (vd PANEL_URL=https://dash.levals.org)."
   [ -n "${TOKEN:-}" ]     || err "Thiếu TOKEN (token node / giấy phép / token máy)."
-  if [ -n "${MACHINE_ID:-}" ]; then
-    IDLINE="  machine_id: $MACHINE_ID"
-  elif [ -n "${NODE_ID:-}" ]; then
+  if [ -n "${NODE_ID:-}" ]; then
     IDLINE="  node_id: $NODE_ID"
   else
-    err "Thiếu NODE_ID (node đơn) hoặc MACHINE_ID (chế độ machine)."
+    err "Thiếu NODE_ID."
   fi
+  KIND="${PANEL_KIND:-levals}"
+  KINDLINE="  kind: \"$KIND\""
+  # node_type cần cho panel xboard/v2board (shadowsocks|vmess|trojan|vless|hysteria|tuic).
+  NTLINE=""
+  [ -n "${NODE_TYPE:-}" ] && NTLINE="
+  node_type: \"$NODE_TYPE\""
   cat > "$CFG/config.yml" <<YML
 panel:
   url: "$PANEL_URL"
   token: "$TOKEN"
 $IDLINE
+$KINDLINE$NTLINE
 core:
   engine: native
 config_dir: "$CFG"
