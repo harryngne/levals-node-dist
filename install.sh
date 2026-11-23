@@ -6,7 +6,8 @@
 #
 # Biến: PANEL_URL, TOKEN, NODE_ID, ACME_STAGING=1 (test Let's Encrypt staging), BASE,
 #       PANEL_KIND=levals|xboard|v2board (mặc định levals — nhận dạng loại panel),
-#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic (cần cho xboard/v2board).
+#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic (cần cho xboard/v2board),
+#       LEVALS_KEY=<giấy phép phần mềm levals-node> (khác api_key của panel).
 # Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
 set -eo pipefail
 
@@ -78,12 +79,16 @@ if [ ! -f "$CFG/config.yml" ]; then
   NTLINE=""
   [ -n "${NODE_TYPE:-}" ] && NTLINE="
 node_type: \"$NODE_TYPE\""
+  # Giấy phép phần mềm levals-node (KHÁC api_key của panel).
+  LKLINE=""
+  [ -n "${LEVALS_KEY:-}" ] && LKLINE="
+levals_key: \"$LEVALS_KEY\""
   # Cấu trúc config kiểu soga (phẳng); vẫn hỗ trợ khối panel: kiểu cũ.
   cat > "$CFG/config.yml" <<YML
 server_type: "$KIND"
 api_host: "$PANEL_URL"
 api_key: "$TOKEN"
-node_id: $NODE_ID$NTLINE
+node_id: $NODE_ID$NTLINE$LKLINE
 core:
   engine: native
 config_dir: "$CFG"
