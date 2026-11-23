@@ -1,0 +1,25 @@
+# DNS kiểu soga cho levals-node (TUỲ CHỌN).
+# Chép thành /etc/levals-node/dns.yml — node tự nạp lúc khởi động.
+# Không có file này = dùng DNS hệ thống như bình thường.
+#
+# Khớp domain: full: (đúng hệt) · domain: (gồm subdomain, MẶC ĐỊNH nếu không ghi) ·
+# keyword: (chứa chuỗi). Phân giải: A/AAAA theo strategy.
+
+# ── Cách 1: đầy đủ ──
+strategy: ipv4_first            # ipv4_first | ipv6_first | ipv4_only | ipv6_only
+servers:                        # DNS mặc định cho mọi domain (trống = DNS hệ thống)
+  - 1.1.1.1
+  - 8.8.8.8:53
+rules:
+  - domains: [netflix.com, nflxvideo.net, "keyword:disney"]
+    server: 1.0.0.1             # nhóm domain này phân giải qua DNS riêng (mở khoá…)
+  - domain: pin.example.com
+    ip: 203.0.113.9            # ghim thẳng IP (như hosts)
+  - domains: [ads.tracker.net, "keyword:doubleclick"]
+    block: true                # chặn, không phân giải
+
+# ── Cách 2: rút gọn kiểu soga (map domain → DNS/ip/block) ──
+# Dùng THAY cho khối trên nếu muốn gọn:
+# "netflix.com": [1.1.1.1, 8.8.8.8]
+# "domain:google.com": 8.8.4.4
+# "ads.example.com": block

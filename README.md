@@ -32,6 +32,11 @@ Engine native thuần Rust phục vụ trực tiếp, tự chọn theo giao th�
 Transport: `tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp` (stream-one/stream-up/packet-up,
 trên HTTP/2 và HTTP/3). *(anytls/naive chưa hỗ trợ.)*
 
+## DNS kiểu soga (tuỳ chọn)
+Đặt `dns.yml` cạnh `config.yml` (mẫu: `dns.example.yml`) để phân giải domain qua
+**DNS riêng** theo nhóm domain, **ghim IP tĩnh** (như hosts), hoặc **chặn**; có
+`strategy` ipv4/ipv6. Không có file = dùng DNS hệ thống như bình thường.
+
 ## Chứng chỉ TLS (DNS-01) — đặt ngay trong panel
 Trong panel, mở node → **Cách lấy chứng chỉ: Tự xin (ACME DNS-01)** → chọn nhà cung cấp
 và dán khoá API, rồi **Lưu**. Node tự lấy chứng chỉ Let's Encrypt, không cần SSH. Hỗ trợ:

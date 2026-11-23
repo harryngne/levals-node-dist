@@ -40,6 +40,9 @@ config_dir: "/etc/levals-node"
 log:
   level: "info"                     # trace|debug|info|warn|error
 
+# DNS kiểu soga (tuỳ chọn): đặt file dns.yml cạnh config.yml (xem dns.example.yml)
+# để phân giải domain qua DNS riêng, ghim IP tĩnh, hoặc chặn. Không có = DNS hệ thống.
+
 # DNS-01 (tuỳ chọn): nên đặt NGAY TRONG PANEL (ô "Nhà cung cấp DNS" + biến KEY=VALUE),
 # node tự nhận. Nhà cung cấp hỗ trợ:
 #   cloudflare : CF_DNS_API_TOKEN
