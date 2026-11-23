@@ -72,23 +72,18 @@ info "Cấu hình"
 if [ ! -f "$CFG/config.yml" ]; then
   [ -n "${PANEL_URL:-}" ] || err "Thiếu PANEL_URL (vd PANEL_URL=https://dash.levals.org)."
   [ -n "${TOKEN:-}" ]     || err "Thiếu TOKEN (token node / giấy phép / token máy)."
-  if [ -n "${NODE_ID:-}" ]; then
-    IDLINE="  node_id: $NODE_ID"
-  else
-    err "Thiếu NODE_ID."
-  fi
+  [ -n "${NODE_ID:-}" ] || err "Thiếu NODE_ID."
   KIND="${PANEL_KIND:-levals}"
-  KINDLINE="  kind: \"$KIND\""
   # node_type cần cho panel xboard/v2board (shadowsocks|vmess|trojan|vless|hysteria|tuic).
   NTLINE=""
   [ -n "${NODE_TYPE:-}" ] && NTLINE="
-  node_type: \"$NODE_TYPE\""
+node_type: \"$NODE_TYPE\""
+  # Cấu trúc config kiểu soga (phẳng); vẫn hỗ trợ khối panel: kiểu cũ.
   cat > "$CFG/config.yml" <<YML
-panel:
-  url: "$PANEL_URL"
-  token: "$TOKEN"
-$IDLINE
-$KINDLINE$NTLINE
+server_type: "$KIND"
+api_host: "$PANEL_URL"
+api_key: "$TOKEN"
+node_id: $NODE_ID$NTLINE
 core:
   engine: native
 config_dir: "$CFG"
