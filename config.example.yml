@@ -8,14 +8,11 @@ api_key: "DÁN_TOKEN"                # token node / giấy phép (api key của 
 node_id: 1                          # ID node trên panel
 # node_type: "vless"               # BẮT BUỘC cho xboard/v2board:
 #                                  # shadowsocks|vmess|trojan|vless|hysteria|tuic
-# levals_key: "GIẤY_PHÉP"          # giấy phép dùng phần mềm levals-node
-#                                  # (KHÁC api_key — api_key là token của panel).
-#                                  # Node tự kiểm tra lúc khởi động + định kỳ;
+levals_key: "GIẤY_PHÉP"            # BẮT BUỘC — giấy phép dùng phần mềm levals-node
+#                                  # (KHÁC api_key: api_key là token của panel).
+#                                  # Thiếu trường này node KHÔNG chạy. Node tự kiểm tra
+#                                  # với hệ thống levals lúc khởi động + định kỳ;
 #                                  # sai/hết hạn/bị tắt → node tự dừng.
-# license_url: "https://dash.levals.org"  # (tuỳ chọn) nơi kiểm tra giấy phép nếu
-#                                  # KHÁC api_host — vd panel cấp user là xboard của
-#                                  # khách, còn giấy phép do hệ thống levals cấp.
-#                                  # Bỏ trống = kiểm tra ngay tại api_host.
 
 # ── Cách viết cũ (vẫn hỗ trợ): khối panel: ──
 # panel:

@@ -7,7 +7,7 @@
 # Biến: PANEL_URL, TOKEN, NODE_ID, ACME_STAGING=1 (test Let's Encrypt staging), BASE,
 #       PANEL_KIND=levals|xboard|v2board (mặc định levals — nhận dạng loại panel),
 #       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic (cần cho xboard/v2board),
-#       LEVALS_KEY=<giấy phép phần mềm levals-node> (khác api_key của panel).
+#       LEVALS_KEY=<giấy phép phần mềm levals-node> (BẮT BUỘC; khác TOKEN của panel).
 # Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
 set -eo pipefail
 
@@ -74,21 +74,20 @@ if [ ! -f "$CFG/config.yml" ]; then
   [ -n "${PANEL_URL:-}" ] || err "Thiếu PANEL_URL (vd PANEL_URL=https://dash.levals.org)."
   [ -n "${TOKEN:-}" ]     || err "Thiếu TOKEN (token node / giấy phép / token máy)."
   [ -n "${NODE_ID:-}" ] || err "Thiếu NODE_ID."
+  [ -n "${LEVALS_KEY:-}" ] || err "Thiếu LEVALS_KEY (giấy phép phần mềm levals-node — BẮT BUỘC; khác TOKEN của panel)."
   KIND="${PANEL_KIND:-levals}"
   # node_type cần cho panel xboard/v2board (shadowsocks|vmess|trojan|vless|hysteria|tuic).
   NTLINE=""
   [ -n "${NODE_TYPE:-}" ] && NTLINE="
 node_type: \"$NODE_TYPE\""
-  # Giấy phép phần mềm levals-node (KHÁC api_key của panel).
-  LKLINE=""
-  [ -n "${LEVALS_KEY:-}" ] && LKLINE="
-levals_key: \"$LEVALS_KEY\""
   # Cấu trúc config kiểu soga (phẳng); vẫn hỗ trợ khối panel: kiểu cũ.
+  # levals_key BẮT BUỘC — thiếu thì node không chạy (KHÁC api_key của panel).
   cat > "$CFG/config.yml" <<YML
 server_type: "$KIND"
 api_host: "$PANEL_URL"
 api_key: "$TOKEN"
-node_id: $NODE_ID$NTLINE$LKLINE
+node_id: $NODE_ID$NTLINE
+levals_key: "$LEVALS_KEY"
 core:
   engine: native
 config_dir: "$CFG"
