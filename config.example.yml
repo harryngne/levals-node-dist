@@ -1,42 +1,51 @@
-# Cấu hình levals-node
+# Cấu hình levals-node — hỗ trợ YAML và JSON (tự nhận theo đuôi file).
 # Chép thành /etc/levals-node/config.yml rồi điền token giấy phép.
+# Cấu trúc kiểu soga (phẳng):
 
-panel:
-  url: "https://dash.levals.org"   # địa chỉ panel levals
-  token: "DÁN_TOKEN"                # node đơn: token node/giấy phép · machine: token máy
-  node_id: 1                        # node đơn: ID node trên panel
-  # Chế độ machine (một máy chạy nhiều node) — dùng machine_id THAY cho node_id:
-  # machine_id: 1
+server_type: "levals"               # loại panel: levals (mặc định) | xboard | v2board
+api_host: "https://dash.levals.org" # địa chỉ panel
+api_key: "DÁN_TOKEN"                # token node / giấy phép (api key của node)
+node_id: 1                          # ID node trên panel
+# node_type: "vless"               # BẮT BUỘC cho xboard/v2board:
+#                                  # shadowsocks|vmess|trojan|vless|hysteria|tuic
+# levals_key: "GIẤY_PHÉP"          # giấy phép dùng phần mềm levals-node
+#                                  # (KHÁC api_key — api_key là token của panel).
+#                                  # Node tự kiểm tra lúc khởi động + định kỳ;
+#                                  # sai/hết hạn/bị tắt → node tự dừng.
+# license_url: "https://dash.levals.org"  # (tuỳ chọn) nơi kiểm tra giấy phép nếu
+#                                  # KHÁC api_host — vd panel cấp user là xboard của
+#                                  # khách, còn giấy phép do hệ thống levals cấp.
+#                                  # Bỏ trống = kiểm tra ngay tại api_host.
 
-# Nhiều panel trên cùng một máy (tuỳ chọn): khai báo `panels:` THAY cho `panel:`.
-# Mỗi panel chạy độc lập (thư mục + cổng điều khiển riêng); nhớ đặt cổng node (server_port)
-# khác nhau giữa các panel để không đụng nhau.
+# ── Cách viết cũ (vẫn hỗ trợ): khối panel: ──
+# panel:
+#   url: "https://dash.levals.org"  # (bí danh soga: api_host)
+#   token: "DÁN_TOKEN"              # (bí danh soga: api_key)
+#   node_id: 1
+#   kind: "levals"                  # (bí danh: server_type, type)
+#   node_type: "vless"
+
+# Nhiều panel trên cùng một máy (tuỳ chọn): khai báo `panels:` THAY cho cấu hình trên.
+# Mỗi panel chạy độc lập; nhớ đặt cổng node (server_port) khác nhau giữa các panel.
 # panels:
-#   - url: "https://dash.levals.org"
-#     token: "TOKEN_PANEL_1"
+#   - api_host: "https://dash.levals.org"
+#     api_key: "TOKEN_PANEL_1"
 #     node_id: 1
-#   - url: "https://panel2.example.com"
-#     token: "TOKEN_PANEL_2"
-#     machine_id: 3
+#   - api_host: "https://panel2.example.com"
+#     api_key: "TOKEN_PANEL_2"
+#     node_id: 2
 
 core:
-  engine: "xray"                             # "xray" (mặc định) hoặc "trojan" (engine Trojan thuần Rust)
-  bin: "/usr/local/lib/levals-node/lvcore"   # lõi mạng (chỉ dùng khi engine=xray)
-  api_port: 10085                            # cổng điều khiển nội bộ (chỉ 127.0.0.1)
-  assets_dir: "/usr/local/lib/levals-node/geo"
-# engine: "trojan" → node tự phục vụ giao thức Trojan-TLS bằng Rust (không cần lvcore),
-#   dùng chứng chỉ ACME như trên. Chỉ cho node giao thức trojan, node đơn (node_id).
-#   Có thể ép bằng biến môi trường: LEVALS_ENGINE=trojan
+  engine: native                    # engine thuần Rust (duy nhất) — không cần lõi ngoài
 
-config_dir: "/etc/levals-node"      # nơi ghi core.json sinh ra + custom.json
+config_dir: "/etc/levals-node"
 
 log:
   level: "info"                     # trace|debug|info|warn|error
 
 # DNS-01 (tuỳ chọn): nên đặt NGAY TRONG PANEL (ô "Nhà cung cấp DNS" + biến KEY=VALUE),
-# node tự nhận — không cần sửa file này. Chỉ dùng mục dưới nếu muốn đặt token tại máy.
-# Nhà cung cấp hỗ trợ + biến cần nhập ở panel:
-#   cloudflare : CF_DNS_API_TOKEN     (token quyền Edit DNS cho zone)
+# node tự nhận. Nhà cung cấp hỗ trợ:
+#   cloudflare : CF_DNS_API_TOKEN
 #   dnspod     : DP_Id  +  DP_Key
 #   aliyun     : Ali_Key  +  Ali_Secret
 #   gcore      : GCORE_API_TOKEN
