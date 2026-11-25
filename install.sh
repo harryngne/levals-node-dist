@@ -6,7 +6,7 @@
 #
 # Biến: PANEL_URL, TOKEN, NODE_ID, ACME_STAGING=1 (test Let's Encrypt staging), BASE,
 #       PANEL_KIND=levals|xboard|v2board (mặc định levals — nhận dạng loại panel),
-#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic (cần cho xboard/v2board),
+#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru (cần cho xboard/v2board),
 #       LEVALS_KEY=<giấy phép phần mềm levals-node> (BẮT BUỘC; khác TOKEN của panel).
 # Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
 set -eo pipefail
@@ -76,7 +76,7 @@ if [ ! -f "$CFG/config.yml" ]; then
   [ -n "${NODE_ID:-}" ] || err "Thiếu NODE_ID."
   [ -n "${LEVALS_KEY:-}" ] || err "Thiếu LEVALS_KEY (giấy phép phần mềm levals-node — BẮT BUỘC; khác TOKEN của panel)."
   KIND="${PANEL_KIND:-levals}"
-  # node_type cần cho panel xboard/v2board (shadowsocks|vmess|trojan|vless|hysteria|tuic).
+  # node_type cần cho panel xboard/v2board (shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru).
   NTLINE=""
   [ -n "${NODE_TYPE:-}" ] && NTLINE="
 node_type: \"$NODE_TYPE\""

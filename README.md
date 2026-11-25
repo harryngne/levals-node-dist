@@ -24,15 +24,15 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
   PANEL_KIND=xboard NODE_TYPE=vless bash
 ```
 - `PANEL_KIND`: `levals` (mặc định) | `xboard` | `v2board`.
-- `NODE_TYPE`: bắt buộc cho xboard/v2board — `shadowsocks|vmess|trojan|vless|hysteria|tuic`.
+- `NODE_TYPE`: bắt buộc cho xboard/v2board — `shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru`.
 
 ## Giao thức & transport
 Engine native thuần Rust phục vụ trực tiếp, tự chọn theo giao thức node:
 **trojan**, **vless** (REALITY + X25519MLKEM768, XTLS Vision, hoặc TLS thường),
 **vmess**, **shadowsocks** (AEAD + 2022-blake3, cả UDP), **socks5** (+UDP),
-**http**, **tuic**, **hysteria2** (+obfs Salamander).
+**http**, **tuic**, **hysteria2** (+obfs Salamander), **anytls** (v1/v2, `padding_scheme` động, UDP-over-TCP v1/v2), **mieru** (v3 TCP/UDP, XChaCha20-Poly1305, Low-Entropy).
 Transport: `tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp` (stream-one/stream-up/packet-up,
-trên HTTP/2 và HTTP/3). *(anytls/naive chưa hỗ trợ.)*
+trên HTTP/2 và HTTP/3). *(naive chưa hỗ trợ.)*
 
 ## DNS kiểu soga (tuỳ chọn)
 Đặt `dns.yml` cạnh `config.yml` (mẫu: `dns.example.yml`) để phân giải domain qua
