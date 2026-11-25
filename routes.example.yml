@@ -1,0 +1,89 @@
+# routes.example.yml — Cấu hình định tuyến & chặn mặc định cho levals-node.
+# Sao chép ra routes.yml rồi chỉnh sửa theo nhu cầu.
+#
+# Các phần:
+#   settings  — bật/tắt tính năng chặn toàn cục (QUIC, BitTorrent, mạng nội bộ).
+#   block     — danh sách chặn chi tiết theo domain, keyword, hoặc IP.
+#
+# Lưu ý:
+#   - "block_quic: true"    → chặn giao thức QUIC/HTTP3 (UDP 443) để ép dùng TCP.
+#   - "block_bt: true"      → chặn BitTorrent (tracker, DHT, peer-exchange).
+#   - "block_private: true"  → chặn truy cập vào dải IP nội bộ (10.x, 172.16-31.x, 192.168.x, 127.x).
+#   - type: domain  → chặn chính xác tên miền (và tên miền con).
+#   - type: keyword → chặn khi URL/host chứa từ khoá.
+#   - type: ip      → chặn truy cập đến IP hoặc CIDR cụ thể.
+
+settings:
+  # Chặn giao thức QUIC (UDP 443) — ép client dùng TCP/TLS thông thường.
+  block_quic: true
+
+  # Chặn BitTorrent — ngăn tải torrent qua proxy.
+  block_bt: true
+
+  # Chặn truy cập mạng nội bộ — ngăn client truy cập dải IP private qua proxy.
+  block_private: true
+
+block:
+  # ─── Chặn theo tên miền (domain) ───
+  # Quảng cáo Google
+  - type: domain
+    values:
+      - ads.google.com
+      - pagead2.googlesyndication.com
+      - googleads.g.doubleclick.net
+      - ad.doubleclick.net
+      - adservice.google.com
+      - adservice.google.com.vn
+      - click.googleanalytics.com
+
+  # Quảng cáo & tracker Facebook / Meta
+  - type: domain
+    values:
+      - ads.facebook.com
+      - an.facebook.com
+      - pixel.facebook.com
+
+  # Quảng cáo Yahoo
+  - type: domain
+    values:
+      - ads.yahoo.com
+
+  # Phân tích & theo dõi (analytics / tracking)
+  - type: domain
+    values:
+      - analytics.google.com
+      - tracking.mixpanel.com
+      - piwik.pro
+      - crashlogs.whatsapp.net
+
+  # Quảng cáo Twitter / X
+  - type: domain
+    values:
+      - ads-api.twitter.com
+      - static.ads-twitter.com
+
+  # Quảng cáo & tracker khác
+  - type: domain
+    values:
+      - ads.pubmatic.com
+      - adsserver.yadro.ru
+      - adtago.s3.amazonaws.com
+      - analyticsengine.s3.amazonaws.com
+      - r.srvtrck.com
+      - random.mean.world
+
+  # ─── Chặn theo từ khoá (keyword) ───
+  # Từ khoá liên quan BitTorrent — bổ sung cho block_bt.
+  - type: keyword
+    values:
+      - torrent
+      - tracker
+      - announce
+      - peer-exchange
+      - seed-peer
+
+  # ─── Chặn theo IP / CIDR ───
+  # Thêm IP hoặc dải CIDR cần chặn vào đây.
+  # Ví dụ: "1.2.3.4", "10.0.0.0/8"
+  - type: ip
+    values: []

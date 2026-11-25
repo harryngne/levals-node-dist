@@ -99,6 +99,76 @@ else
   ok "giữ $CFG/config.yml sẵn có"
 fi
 
+# ── DNS & Routes mặc định (blocklist kiểu soga) ──
+info "Tạo cấu hình DNS & Routes mặc định"
+if [ ! -f "$CFG/dns.yml" ]; then
+  cat > "$CFG/dns.yml" <<'DNS'
+strategy: ipv4_first
+servers:
+  - 1.1.1.1
+  - 8.8.8.8
+rules:
+  - domains: ["keyword:doubleclick", "keyword:adsserver", "keyword:adservice", "keyword:pagead", "keyword:googleads", "keyword:googlesyndication"]
+    block: true
+  - domains: [ads.google.com, ads.yahoo.com, ads.facebook.com, an.facebook.com, analytics.google.com, pixel.facebook.com, ads-api.twitter.com, tracking.mixpanel.com]
+    block: true
+DNS
+  ok "đã tạo $CFG/dns.yml (blocklist mặc định)"
+else
+  ok "giữ $CFG/dns.yml sẵn có"
+fi
+
+if [ ! -f "$CFG/routes.yml" ]; then
+  cat > "$CFG/routes.yml" <<'ROUTES'
+# routes.yml — Danh sách chặn mặc định cho levals-node.
+# Chặn quảng cáo, tracker, BitTorrent, truy cập mạng nội bộ.
+
+settings:
+  block_quic: true
+  block_bt: true
+  block_private: true
+
+block:
+  - type: domain
+    values:
+      - ads.google.com
+      - pagead2.googlesyndication.com
+      - googleads.g.doubleclick.net
+      - ad.doubleclick.net
+      - adservice.google.com
+      - adservice.google.com.vn
+      - ads.yahoo.com
+      - ads.facebook.com
+      - an.facebook.com
+      - pixel.facebook.com
+      - analytics.google.com
+      - click.googleanalytics.com
+      - ads.pubmatic.com
+      - adsserver.yadro.ru
+      - tracking.mixpanel.com
+      - ads-api.twitter.com
+      - crashlogs.whatsapp.net
+      - static.ads-twitter.com
+      - adtago.s3.amazonaws.com
+      - analyticsengine.s3.amazonaws.com
+      - r.srvtrck.com
+      - random.mean.world
+      - piwik.pro
+  - type: keyword
+    values:
+      - torrent
+      - tracker
+      - announce
+      - peer-exchange
+      - seed-peer
+  - type: ip
+    values: []
+ROUTES
+  ok "đã tạo $CFG/routes.yml (blocklist mặc định)"
+else
+  ok "giữ $CFG/routes.yml sẵn có"
+fi
+
 # ── systemd ──
 info "Dịch vụ systemd"
 cat > /etc/systemd/system/levals-node.service <<UNIT
