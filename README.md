@@ -13,8 +13,28 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
   gắn vào URL panel ở lần chạy đầu tiên. Dùng giấy phép với panel khác → node tự dừng.
 - Script tải binary levals-node (engine thuần Rust, **không cần lõi ngoài**), tạo
   `/etc/levals-node/config.yml`, dựng dịch vụ systemd. Hỗ trợ `x86_64` và `aarch64`.
-- Xem log: `journalctl -u levals-node -f`
-- Cập nhật: `lvnode update`
+- Quản lý đa instance & xem log realtime hợp nhất (agent + client):
+```
+lvnode                              - Hiển thị menu quản lý tương tác
+lvnode list                         - Liệt kê các instance & trạng thái
+lvnode new <name> [k1=v1 ...]       - Tạo instance mới
+lvnode remove <name> [name...]      - Xoá instance
+lvnode rename <old_name> <new_name> - Đổi tên instance
+lvnode start [name]                 - Khởi động instance
+lvnode stop [name]                  - Dừng instance
+lvnode restart [name]               - Khởi động lại instance
+lvnode enable [name]                - Bật tự chạy khi khởi động máy
+lvnode disable [name]               - Tắt tự chạy khi khởi động máy
+lvnode log [name]                   - Xem log realtime hợp nhất (agent + client)
+lvnode log [name] -n <số_dòng>      - Xem N dòng log gần nhất
+lvnode config [name]                - Xem file cấu hình
+lvnode config [name] -e             - Sửa file cấu hình bằng nano/vi
+lvnode config [name] k1=v1 k2=v2    - Sửa hoặc thêm cấu hình & tự restart
+lvnode update [version]             - Cài đặt / cập nhật levals-node
+lvnode uninstall                    - Gỡ cài đặt hoàn toàn levals-node
+lvnode self-update                  - Cập nhật script quản lý lvnode
+lvnode version                      - Xem phiên bản
+```
 
 ### Panel khác levals (xboard / v2board)
 Mặc định nhận panel **levals**. Dùng panel khác thì khai báo loại + node_type:

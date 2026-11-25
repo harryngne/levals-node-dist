@@ -23,7 +23,11 @@ trap 'err "Cài đặt dừng do lỗi (dòng $LINENO)."' ERR
 API_PORT=${API_PORT:-10085}
 LIB=/usr/local/lib/levals-node
 GEO="$LIB/geo"
-CFG=/etc/levals-node
+if [ -n "${INSTANCE:-}" ] && [ "${INSTANCE}" != "default" ] && [ "${INSTANCE}" != "levals-node" ]; then
+  CFG="/etc/levals-node-${INSTANCE#levals-node-}"
+else
+  CFG=/etc/levals-node
+fi
 BASE=${BASE:-https://github.com/harryngne/levals-node-dist/releases/latest/download}
 
 # ── Trình quản lý gói + cài phụ thuộc ──
@@ -169,40 +173,72 @@ else
   ok "giữ $CFG/routes.yml sẵn có"
 fi
 
-# ── systemd ──
+# ── systemd (tự restart khi token hết hạn / bị ngắt / bị xoá để tự phục hồi ngay khi được cấp lại) ──
 info "Dịch vụ systemd"
-cat > /etc/systemd/system/levals-node.service <<UNIT
+SVC_NAME="levals-node"
+if [ -n "${INSTANCE:-}" ] && [ "${INSTANCE}" != "default" ] && [ "${INSTANCE}" != "levals-node" ]; then
+  SVC_NAME="levals-node-${INSTANCE#levals-node-}"
+fi
+cat > "/etc/systemd/system/${SVC_NAME}.service" <<UNIT
 [Unit]
-Description=levals-node
-After=network.target
+Description=${SVC_NAME}
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 ExecStart=/usr/local/bin/levals-node -c $CFG/config.yml
 ${ACME_STAGING:+Environment=LEVALS_ACME_STAGING=1}
 Restart=always
-RestartPreventExitStatus=2
-RestartSec=3
+RestartSec=5
 LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-systemctl daemon-reload
-systemctl enable -q --now levals-node 2>/dev/null || systemctl enable -q levals-node 2>/dev/null || true
-systemctl restart levals-node
 
-# ── lvnode (lệnh quản lý) ──
-dl "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode" /usr/local/bin/lvnode 2>/dev/null \
+# Gỡ RestartPreventExitStatus=2 trên các instance cũ (nếu có) để mọi instance đều tự restart khi token được bật lại
+for u in /etc/systemd/system/levals-node*.service; do
+  [ -f "$u" ] || continue
+  sed -i '/^RestartPreventExitStatus=/d' "$u" 2>/dev/null || true
+  grep -q '^StartLimitIntervalSec=' "$u" 2>/dev/null || sed -i '/^\[Unit\]/a StartLimitIntervalSec=0' "$u" 2>/dev/null || true
+done
+
+systemctl daemon-reload
+systemctl enable -q --now "$SVC_NAME" 2>/dev/null || systemctl enable -q "$SVC_NAME" 2>/dev/null || true
+systemctl restart "$SVC_NAME"
+
+# ── lvnode (lệnh quản lý đa instance phong cách soga) ──
+dl "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode?$(date +%s)" /usr/local/bin/lvnode 2>/dev/null \
   && chmod +x /usr/local/bin/lvnode && ok "lệnh quản lý: lvnode" || warn "không tải được lvnode (bỏ qua)"
 
 # ── Kiểm tra sau khi chạy ──
 info "Kiểm tra"
 sleep 2
-if systemctl is-active --quiet levals-node; then
-  ok "levals-node đang chạy"
-  echo -e "\n${GRN}Xong.${NC} Quản lý: ${BLU}lvnode${NC}   ·   Log: ${BLU}lvnode log${NC}"
+if systemctl is-active --quiet "$SVC_NAME"; then
+  ok "$SVC_NAME đang chạy"
+  echo -e ""
+  echo "Cách sử dụng script quản lý lvnode:"
+  echo "--------------------------------------------------------------------"
+  echo "lvnode                              - Hiển thị menu quản lý"
+  echo "lvnode list                         - Liệt kê các instance & trạng thái"
+  echo "lvnode new <name> [k1=v1 ...]       - Tạo instance mới"
+  echo "lvnode remove <name> [name...]      - Xoá instance"
+  echo "lvnode rename <old_name> <new_name> - Đổi tên instance"
+  echo "lvnode start [name]                 - Khởi động instance"
+  echo "lvnode stop [name]                  - Dừng instance"
+  echo "lvnode restart [name]               - Khởi động lại instance"
+  echo "lvnode enable [name]                - Bật tự chạy khi khởi động máy"
+  echo "lvnode disable [name]               - Tắt tự chạy khi khởi động máy"
+  echo "lvnode log [name]                   - Xem log realtime hợp nhất (agent + client)"
+  echo "lvnode config [name]                - Xem file cấu hình"
+  echo "lvnode config [name] k1=v1 k2=v2    - Sửa hoặc thêm cấu hình & tự restart"
+  echo "lvnode update [version]             - Cài đặt / cập nhật levals-node"
+  echo "lvnode uninstall                    - Gỡ cài đặt hoàn toàn levals-node"
+  echo "lvnode self-update                  - Cập nhật script quản lý lvnode"
+  echo "lvnode version                      - Xem phiên bản"
+  echo "--------------------------------------------------------------------"
 else
-  warn "levals-node chưa chạy — 20 dòng log gần nhất:"
-  journalctl -u levals-node -n 20 --no-pager 2>/dev/null || true
-  err "Dịch vụ chưa lên. Thường do: token sai/hết hạn, sai PANEL_URL, hoặc cổng 443/80 bị chiếm."
+  warn "$SVC_NAME chưa lên ngay — 20 dòng log gần nhất (dịch vụ vẫn đang tự động thử lại nền):"
+  journalctl -u "$SVC_NAME" -n 20 --no-pager 2>/dev/null || true
 fi
