@@ -9,6 +9,8 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
   PANEL_URL=https://dash.levals.org TOKEN=<token-giấy-phép> NODE_ID=1 bash
 ```
 - `TOKEN`: token giấy phép do quản trị levals cấp (có thời hạn). Hết hạn → node tự dừng.
+- Giấy phép **gắn với URL panel** (`PANEL_URL`): quản trị gán sẵn URL, hoặc giấy phép tự
+  gắn vào URL panel ở lần chạy đầu tiên. Dùng giấy phép với panel khác → node tự dừng.
 - Script tải binary levals-node (engine thuần Rust, **không cần lõi ngoài**), tạo
   `/etc/levals-node/config.yml`, dựng dịch vụ systemd. Hỗ trợ `x86_64` và `aarch64`.
 - Xem log: `journalctl -u levals-node -f`

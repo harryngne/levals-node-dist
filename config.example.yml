@@ -13,6 +13,9 @@ levals_key: "GIẤY_PHÉP"            # BẮT BUỘC — giấy phép dùng ph�
 #                                  # Thiếu trường này node KHÔNG chạy. Node tự kiểm tra
 #                                  # với hệ thống levals lúc khởi động + định kỳ;
 #                                  # sai/hết hạn/bị tắt → node tự dừng.
+#                                  # Giấy phép gắn với URL panel (api_host): admin gán
+#                                  # tay trên web, hoặc tự gắn ở lần chạy đầu tiên —
+#                                  # dùng với panel khác → node tự dừng.
 
 # ── Cách viết cũ (vẫn hỗ trợ): khối panel: ──
 # panel:
