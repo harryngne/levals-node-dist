@@ -1,5 +1,5 @@
 #!/bin/bash
-# lvnode · Trình quản lý đa instance cho levals-node (phong cách soga)
+# lvnode · Trình quản lý đa instance cho levals-node
 set -uo pipefail
 
 LVNODE_VER="2.2.0"

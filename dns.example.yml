@@ -1,4 +1,4 @@
-# DNS kiểu soga cho levals-node (TUỲ CHỌN).
+# DNS tùy chỉnh cho levals-node (TUỲ CHỌN).
 # Chép thành /etc/levals-node/dns.yml — node tự nạp lúc khởi động.
 # Không có file này = dùng DNS hệ thống như bình thường.
 #
@@ -18,7 +18,7 @@ rules:
   - domains: [ads.tracker.net, "keyword:doubleclick"]
     block: true                # chặn, không phân giải
 
-# ── Cách 2: rút gọn kiểu soga (map domain → DNS/ip/block) ──
+# ── Cách 2: rút gọn (map domain → DNS/ip/block) ──
 # Dùng THAY cho khối trên nếu muốn gọn:
 # "netflix.com": [1.1.1.1, 8.8.8.8]
 # "domain:google.com": 8.8.4.4

@@ -132,7 +132,7 @@ if [ ! -f "$CFG/config.yml" ]; then
   NTLINE=""
   [ -n "${NODE_TYPE:-}" ] && NTLINE="
 node_type: \"$NODE_TYPE\""
-  # Cấu trúc config kiểu soga (phẳng); vẫn hỗ trợ khối panel: kiểu cũ.
+  # Cấu trúc config chuẩn levals-node (phẳng); vẫn hỗ trợ khối panel: kiểu cũ.
   # levals_key BẮT BUỘC — thiếu thì node không chạy (KHÁC api_key của panel).
   cat > "$CFG/config.yml" <<YML
 server_type: "$KIND"
@@ -151,7 +151,7 @@ else
   ok "giữ $CFG/config.yml sẵn có"
 fi
 
-# ── DNS & Routes mặc định (blocklist kiểu soga) ──
+# ── DNS & Routes mặc định ──
 info "Tạo cấu hình DNS & Routes mặc định"
 if [ ! -f "$CFG/dns.yml" ]; then
   cat > "$CFG/dns.yml" <<'DNS'
@@ -256,7 +256,7 @@ systemctl daemon-reload
 systemctl enable -q --now "$SVC_NAME" 2>/dev/null || systemctl enable -q "$SVC_NAME" 2>/dev/null || true
 systemctl restart "$SVC_NAME"
 
-# ── lvnode (lệnh quản lý đa instance phong cách soga) ──
+# ── lvnode (lệnh quản lý đa instance) ──
 dl "https://raw.githubusercontent.com/harryngne/levals-node-dist/main/lvnode?$(date +%s)" /usr/local/bin/lvnode 2>/dev/null \
   && chmod +x /usr/local/bin/lvnode && ok "lệnh quản lý: lvnode" || warn "không tải được lvnode (bỏ qua)"
 

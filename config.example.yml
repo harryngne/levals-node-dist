@@ -1,6 +1,6 @@
 # Cấu hình levals-node — hỗ trợ YAML và JSON (tự nhận theo đuôi file).
 # Chép thành /etc/levals-node/config.yml rồi điền token giấy phép.
-# Cấu trúc kiểu soga (phẳng):
+# Cấu trúc chuẩn levals-node (phẳng):
 
 server_type: "levals"               # loại panel: levals (mặc định) | xboard | v2board
 api_host: "https://dash.levals.org" # địa chỉ panel
@@ -19,8 +19,8 @@ levals_key: "GIẤY_PHÉP"            # BẮT BUỘC — giấy phép dùng ph�
 
 # ── Cách viết cũ (vẫn hỗ trợ): khối panel: ──
 # panel:
-#   url: "https://dash.levals.org"  # (bí danh soga: api_host)
-#   token: "DÁN_TOKEN"              # (bí danh soga: api_key)
+#   url: "https://dash.levals.org"  # (bí danh cũ: api_host)
+#   token: "DÁN_TOKEN"              # (bí danh cũ: api_key)
 #   node_id: 1
 #   kind: "levals"                  # (bí danh: server_type, type)
 #   node_type: "vless"
@@ -43,7 +43,7 @@ config_dir: "/etc/levals-node"
 log:
   level: "info"                     # trace|debug|info|warn|error
 
-# DNS kiểu soga (tuỳ chọn): đặt file dns.yml cạnh config.yml (xem dns.example.yml)
+# DNS tùy chỉnh (tuỳ chọn): đặt file dns.yml cạnh config.yml (xem dns.example.yml)
 # để phân giải domain qua DNS riêng, ghim IP tĩnh, hoặc chặn. Không có = DNS hệ thống.
 
 # DNS-01 (tuỳ chọn): nên đặt NGAY TRONG PANEL (ô "Nhà cung cấp DNS" + biến KEY=VALUE),
