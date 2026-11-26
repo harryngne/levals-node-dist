@@ -3,27 +3,29 @@
 set -uo pipefail
 trap 'exit 0' HUP INT TERM PIPE
 
-LVNODE_VER="3.0.1"
+LVNODE_VER="3.0.2"
 BIN="/usr/local/bin/levals-node"
 RAW_BASE="https://raw.githubusercontent.com/harryngne/levals-node-dist/main"
 REL_BASE="https://github.com/harryngne/levals-node-dist/releases"
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; CYN='\033[96m'; BLD='\033[1m'; NC='\033[0m'
 
-# Automatically reap orphaned lvnode menu processes that lost their controlling SSH TTY
+# Automatically reap orphaned / runaway lvnode menu processes (>3s CPU time or lost SSH TTY)
 cleanup_orphan_lvnode(){
   [ "$(id -u)" = 0 ] || return 0
-  local pid ppid tty cmd
-  while read -r pid ppid tty cmd; do
+  local pid cput tty cmd
+  while read -r pid cput tty cmd; do
     [ -n "$pid" ] || continue
     [ "$pid" = "$$" ] && continue
     [ "$pid" = "$PPID" ] && continue
-    if [ "$tty" = "?" ] && [ "$ppid" = "1" ]; then
-      case "$cmd" in
-        */lvnode*|*"lvnode") kill -9 "$pid" 2>/dev/null || true ;;
-      esac
-    fi
-  done < <(ps -eo pid=,ppid=,tty=,args= 2>/dev/null || true)
+    case "$cmd" in
+      */lvnode*|*"lvnode")
+        if [ "$tty" = "?" ] || [ "${cput:-0}" -ge 3 ] 2>/dev/null; then
+          kill -9 "$pid" 2>/dev/null || true
+        fi
+        ;;
+    esac
+  done < <(ps -eo pid=,cputimes=,tty=,args= 2>/dev/null || true)
 }
 cleanup_orphan_lvnode
 

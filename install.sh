@@ -241,20 +241,21 @@ trap 'err "$(_im err_trap)"' ERR
 
 [ "$(id -u)" = 0 ] || err "$(_im need_root)"
 
-# Reap any orphaned lvnode processes from older versions that lost their SSH TTY
+# Reap any orphaned / runaway lvnode processes from older versions (>3s CPU or lost SSH TTY)
 reap_orphan_lvnode(){
-  local killed=0 pid ppid tty cmd
-  while read -r pid ppid tty cmd; do
+  local killed=0 pid cput tty cmd
+  while read -r pid cput tty cmd; do
     [ -n "$pid" ] || continue
     [ "$pid" = "$$" ] && continue
-    if [ "$tty" = "?" ] && [ "$ppid" = "1" ]; then
-      case "$cmd" in
-        */lvnode*|*"lvnode")
+    [ "$pid" = "$PPID" ] && continue
+    case "$cmd" in
+      */lvnode*|*"lvnode")
+        if [ "$tty" = "?" ] || [ "${cput:-0}" -ge 3 ] 2>/dev/null; then
           kill -9 "$pid" 2>/dev/null && killed=$((killed + 1)) || true
-          ;;
-      esac
-    fi
-  done < <(ps -eo pid=,ppid=,tty=,args= 2>/dev/null || true)
+        fi
+        ;;
+    esac
+  done < <(ps -eo pid=,cputimes=,tty=,args= 2>/dev/null || true)
   [ "$killed" -gt 0 ] && ok "$(_im reaped_orphan): $killed" || true
 }
 reap_orphan_lvnode
