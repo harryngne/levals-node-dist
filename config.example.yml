@@ -43,6 +43,16 @@ config_dir: "/etc/levals-node"
 log:
   level: "info"                     # trace|debug|info|warn|error
 
+# Nhận diện lưu lượng (Sniffing — mặc định BẬT): tự trích xuất tên miền từ TLS SNI,
+# HTTP Host, QUIC Initial SNI và nhận diện BitTorrent (TCP/UDP/DHT/Tracker) kể cả khi
+# client nối bằng IP thuần hoặc Fake-IP (198.18.0.0/15).
+sniffing:
+  enabled: true
+  route_only: false                 # true = chỉ dùng domain sniff để chặn/định tuyến, giữ nguyên IP đích
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
+
 # DNS tùy chỉnh (tuỳ chọn): đặt file dns.yml cạnh config.yml (xem dns.example.yml)
 # để phân giải domain qua DNS riêng, ghim IP tĩnh, hoặc chặn. Không có = DNS hệ thống.
 

@@ -23,6 +23,9 @@ settings:
   # Chặn truy cập mạng nội bộ — ngăn client truy cập dải IP private qua proxy.
   block_private: true
 
+  # Nhận diện lưu lượng (TLS SNI / HTTP Host / QUIC SNI / BitTorrent DPI trên mọi cổng).
+  sniffing: true
+
 block:
   # ─── Chặn theo tên miền (domain) ───
   # Quảng cáo Google

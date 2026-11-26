@@ -32,6 +32,7 @@
 | ⚡ Per-User Limits | Speed limit, traffic counting, online IP limit per user |
 | 🧭 Custom DNS | Domain-based DNS routing, IP pinning, ad blocking |
 | 🛡️ Routes & Rules | Block ads, trackers, BitTorrent, private networks |
+| 🔍 Traffic Sniffing | TLS SNI, HTTP Host, QUIC Initial SNI, BitTorrent DPI & Fake-IP resolution |
 | 🔧 Multi-Instance | Manage multiple instances via `lvnode` CLI |
 | ♻️ Auto-Restart | Automatic restart on token expiry or revocation |
 
@@ -296,6 +297,7 @@ A valid license key (`levals_key`) is required. Contact your administrator for l
 | ⚡ 用户级限制 | 每用户速率限制、流量统计、在线 IP 限制 |
 | 🧭 自定义 DNS | 基于域名的 DNS 路由、IP 固定、广告拦截 |
 | 🛡️ 路由规则 | 拦截广告、追踪器、BitTorrent、私有网络 |
+| 🔍 流量嗅探 | TLS SNI、HTTP Host、QUIC Initial SNI、BitTorrent 深度识别与 Fake-IP 还原 |
 | 🔧 多实例管理 | 通过 `lvnode` CLI 管理多个实例 |
 | ♻️ 自动重启 | Token 过期或撤销时自动重启 |
 
@@ -560,6 +562,7 @@ core:
 | ⚡ Giới hạn theo User | Giới hạn tốc độ, đếm lưu lượng, giới hạn IP online theo từng user |
 | 🧭 DNS tùy chỉnh | Định tuyến DNS theo domain, ghim IP, chặn quảng cáo |
 | 🛡️ Route & Rules | Chặn quảng cáo, tracker, BitTorrent, mạng nội bộ |
+| 🔍 Sniffing lưu lượng | Tự nhận diện TLS SNI, HTTP Host, QUIC Initial SNI, BitTorrent DPI & giải Fake-IP |
 | 🔧 Quản lý đa instance | Quản lý nhiều instance qua CLI `lvnode` |
 | ♻️ Tự khởi động lại | Tự khởi động lại khi token hết hạn hoặc bị thu hồi |
 
