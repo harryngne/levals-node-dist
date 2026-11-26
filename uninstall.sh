@@ -19,6 +19,12 @@ echo "== Dừng tiến trình còn sót"
 pkill -f '/usr/local/bin/levals-node' 2>/dev/null || true
 pkill -f '/usr/local/lib/levals-node/lvcore' 2>/dev/null || true
 
+echo "== Dọn interface WireGuard lvwg* & sysctl"
+for dev in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^lvwg[0-9]+$' || true); do
+  ip link del "$dev" >/dev/null 2>&1 || true
+done
+rm -f /etc/sysctl.d/99-levals-node.conf 2>/dev/null || true
+
 echo "== Xoá tập tin thực thi"
 rm -f /usr/local/bin/levals-node /usr/local/bin/lvnode
 rm -rf /usr/local/lib/levals-node
