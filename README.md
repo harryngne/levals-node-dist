@@ -63,7 +63,20 @@
 
 ## Quick Install
 
-**One command** (recommended):
+**Option 1 — Install & edit config file manually (XrayR style):**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh)
+```
+
+Then edit `/etc/levals-node/config.yml` and start the service:
+
+```bash
+lvnode config -e     # or: nano /etc/levals-node/config.yml
+lvnode restart
+```
+
+**Option 2 — Zero-touch one-line install:**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
@@ -73,7 +86,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/m
   --license YOUR_LICENSE_KEY
 ```
 
-Or using environment variables (legacy, still supported):
+*(For Xboard / V2Board, append `--panel-kind xboard --node-type vless`)*
+
+**Option 3 — Environment variables:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
@@ -312,7 +327,20 @@ A valid license key (`levals_key`) is required. Contact your administrator for l
 
 ## 快速安装
 
-**一键安装**（推荐）：
+**方式一：先安装，再手动修改配置文件（传统 XrayR 方式）：**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh)
+```
+
+安装完成后编辑 `/etc/levals-node/config.yml` 并重启服务：
+
+```bash
+lvnode config -e     # 或：nano /etc/levals-node/config.yml
+lvnode restart
+```
+
+**方式二：命令行参数全自动对接：**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
@@ -322,7 +350,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/m
   --license YOUR_LICENSE_KEY
 ```
 
-或使用环境变量（旧方式，仍然支持）：
+*（对接 Xboard / V2Board 请追加：`--panel-kind xboard --node-type vless`）*
+
+**方式三：使用环境变量：**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
@@ -561,7 +591,20 @@ core:
 
 ## Cài đặt nhanh
 
-**Một lệnh duy nhất** (khuyến nghị):
+**Cách 1 — Cài đặt trước, tự chỉnh file cấu hình (kiểu XrayR):**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh)
+```
+
+Sau khi cài xong, mở file `/etc/levals-node/config.yml` điền thông tin rồi khởi động:
+
+```bash
+lvnode config -e     # hoặc: nano /etc/levals-node/config.yml
+lvnode restart
+```
+
+**Cách 2 — Tự động điền cấu hình trong một lệnh:**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
@@ -571,7 +614,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/m
   --license YOUR_LICENSE_KEY
 ```
 
-Hoặc dùng biến môi trường (cách cũ, vẫn hỗ trợ):
+*(Nếu dùng Xboard / V2Board, thêm `--panel-kind xboard --node-type vless`)*
+
+**Cách 3 — Dùng biến môi trường:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \

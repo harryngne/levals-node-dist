@@ -1,24 +1,737 @@
 #!/bin/bash
-# lvnode · Trình quản lý đa instance cho levals-node
+# lvnode · Multi-instance manager for levals-node (EN / 中文 / Tiếng Việt)
 set -uo pipefail
+trap 'exit 0' HUP INT TERM PIPE
 
-LVNODE_VER="2.2.0"
+LVNODE_VER="3.0.1"
 BIN="/usr/local/bin/levals-node"
 RAW_BASE="https://raw.githubusercontent.com/harryngne/levals-node-dist/main"
 REL_BASE="https://github.com/harryngne/levals-node-dist/releases"
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; CYN='\033[96m'; BLD='\033[1m'; NC='\033[0m'
 
+# Automatically reap orphaned lvnode menu processes that lost their controlling SSH TTY
+cleanup_orphan_lvnode(){
+  [ "$(id -u)" = 0 ] || return 0
+  local pid ppid tty cmd
+  while read -r pid ppid tty cmd; do
+    [ -n "$pid" ] || continue
+    [ "$pid" = "$$" ] && continue
+    [ "$pid" = "$PPID" ] && continue
+    if [ "$tty" = "?" ] && [ "$ppid" = "1" ]; then
+      case "$cmd" in
+        */lvnode*|*"lvnode") kill -9 "$pid" 2>/dev/null || true ;;
+      esac
+    fi
+  done < <(ps -eo pid=,ppid=,tty=,args= 2>/dev/null || true)
+}
+cleanup_orphan_lvnode
+
+# ── i18n ──
+LN="${LVNODE_LANG:-}"
+if [ -z "$LN" ]; then
+  case "${LANG:-}${LANGUAGE:-}" in
+    zh*|ZH*) LN=zh ;;
+    vi*|VI*) LN=vi ;;
+    *)       LN=en ;;
+  esac
+fi
+
+_m(){
+  case "$1" in
+    need_root)
+      case $LN in
+        zh) echo "需要 root 权限（使用 sudo）。" ;;
+        vi) echo "Cần chạy bằng quyền root (sudo)." ;;
+        *)  echo "Root privileges required (use sudo)." ;;
+      esac ;;
+    invalid_inst)
+      case $LN in
+        zh) echo "实例名无效" ;;
+        vi) echo "Tên instance không hợp lệ" ;;
+        *)  echo "Invalid instance name" ;;
+      esac ;;
+    invalid_inst_detail)
+      case $LN in
+        zh) echo "(只允许字母、数字、.、_、-)。" ;;
+        vi) echo "(chỉ dùng chữ, số, ., _, -)." ;;
+        *)  echo "(only letters, numbers, ., _, - allowed)." ;;
+      esac ;;
+    state_running)
+      case $LN in
+        zh) echo "运行中" ;;
+        vi) echo "đang chạy" ;;
+        *)  echo "running" ;;
+      esac ;;
+    state_error)
+      case $LN in
+        zh) echo "错误/自动重启" ;;
+        vi) echo "lỗi / tự restart" ;;
+        *)  echo "error / auto-restart" ;;
+      esac ;;
+    state_stopped)
+      case $LN in
+        zh) echo "已停止" ;;
+        vi) echo "đã dừng" ;;
+        *)  echo "stopped" ;;
+      esac ;;
+    boot_enabled)
+      case $LN in
+        zh) echo "已启用" ;;
+        vi) echo "tự bật" ;;
+        *)  echo "enabled" ;;
+      esac ;;
+    boot_disabled)
+      case $LN in
+        zh) echo "已禁用" ;;
+        vi) echo "tắt" ;;
+        *)  echo "disabled" ;;
+      esac ;;
+    no_instance)
+      case $LN in
+        zh) echo "尚未创建任何实例。" ;;
+        vi) echo "Chưa có instance nào được tạo." ;;
+        *)  echo "No instances found." ;;
+      esac ;;
+    hdr_instance)
+      case $LN in
+        zh) echo "实例" ;;
+        vi) echo "INSTANCE" ;;
+        *)  echo "INSTANCE" ;;
+      esac ;;
+    hdr_status)
+      case $LN in
+        zh) echo "状态" ;;
+        vi) echo "TRẠNG THÁI" ;;
+        *)  echo "STATUS" ;;
+      esac ;;
+    hdr_boot)
+      case $LN in
+        zh) echo "启动" ;;
+        vi) echo "KHỞI ĐỘNG" ;;
+        *)  echo "BOOT" ;;
+      esac ;;
+    hdr_type)
+      case $LN in
+        zh) echo "类型" ;;
+        vi) echo "LOẠI" ;;
+        *)  echo "TYPE" ;;
+      esac ;;
+    hdr_panel)
+      case $LN in
+        zh) echo "面板" ;;
+        vi) echo "PANEL" ;;
+        *)  echo "PANEL" ;;
+      esac ;;
+    usage_title)
+      case $LN in
+        zh) echo "lvnode 管理脚本用法：" ;;
+        vi) echo "Cách sử dụng script quản lý lvnode:" ;;
+        *)  echo "lvnode management script usage:" ;;
+      esac ;;
+    u_menu)
+      case $LN in
+        zh) echo "显示管理菜单（更多功能）" ;;
+        vi) echo "Hiển thị menu quản lý (nhiều tính năng)" ;;
+        *)  echo "Show management menu (more features)" ;;
+      esac ;;
+    u_list)
+      case $LN in
+        zh) echo "列出现有实例及状态" ;;
+        vi) echo "Liệt kê các instance hiện có & trạng thái" ;;
+        *)  echo "List existing instances & status" ;;
+      esac ;;
+    u_new)
+      case $LN in
+        zh) echo "创建新实例" ;;
+        vi) echo "Tạo instance mới" ;;
+        *)  echo "Create new instance" ;;
+      esac ;;
+    u_remove)
+      case $LN in
+        zh) echo "删除一个或多个实例" ;;
+        vi) echo "Xoá một hoặc nhiều instance" ;;
+        *)  echo "Remove one or more instances" ;;
+      esac ;;
+    u_rename)
+      case $LN in
+        zh) echo "重命名实例" ;;
+        vi) echo "Đổi tên instance" ;;
+        *)  echo "Rename instance" ;;
+      esac ;;
+    u_start)
+      case $LN in
+        zh) echo "启动实例" ;;
+        vi) echo "Khởi động instance" ;;
+        *)  echo "Start instance" ;;
+      esac ;;
+    u_stop)
+      case $LN in
+        zh) echo "停止实例" ;;
+        vi) echo "Dừng instance" ;;
+        *)  echo "Stop instance" ;;
+      esac ;;
+    u_restart)
+      case $LN in
+        zh) echo "重启实例" ;;
+        vi) echo "Khởi động lại instance" ;;
+        *)  echo "Restart instance" ;;
+      esac ;;
+    u_enable)
+      case $LN in
+        zh) echo "设置开机自启" ;;
+        vi) echo "Bật tự chạy khi khởi động máy" ;;
+        *)  echo "Enable auto-start on boot" ;;
+      esac ;;
+    u_disable)
+      case $LN in
+        zh) echo "禁用开机自启" ;;
+        vi) echo "Tắt tự chạy khi khởi động máy" ;;
+        *)  echo "Disable auto-start on boot" ;;
+      esac ;;
+    u_log)
+      case $LN in
+        zh) echo "查看实时合并日志（agent + client）" ;;
+        vi) echo "Xem log realtime hợp nhất (agent + client)" ;;
+        *)  echo "View realtime merged log (agent + client)" ;;
+      esac ;;
+    u_log_n)
+      case $LN in
+        zh) echo "查看最近 N 行日志（不等待）" ;;
+        vi) echo "Xem N dòng log gần nhất (không chờ)" ;;
+        *)  echo "View last N log lines (no follow)" ;;
+      esac ;;
+    u_config)
+      case $LN in
+        zh) echo "查看实例配置文件" ;;
+        vi) echo "Xem file cấu hình của instance" ;;
+        *)  echo "View instance config file" ;;
+      esac ;;
+    u_config_e)
+      case $LN in
+        zh) echo "用 nano/vi 编辑配置文件" ;;
+        vi) echo "Sửa file cấu hình bằng nano/vi" ;;
+        *)  echo "Edit config file with nano/vi" ;;
+      esac ;;
+    u_config_kv)
+      case $LN in
+        zh) echo "修改或添加配置并自动重启" ;;
+        vi) echo "Sửa hoặc thêm cấu hình & tự restart" ;;
+        *)  echo "Set/add config & auto-restart" ;;
+      esac ;;
+    u_update)
+      case $LN in
+        zh) echo "安装/更新 levals-node 二进制" ;;
+        vi) echo "Cài đặt / cập nhật binary levals-node" ;;
+        *)  echo "Install/update levals-node binary" ;;
+      esac ;;
+    u_uninstall)
+      case $LN in
+        zh) echo "完全卸载 levals-node" ;;
+        vi) echo "Gỡ cài đặt hoàn toàn levals-node" ;;
+        *)  echo "Completely uninstall levals-node" ;;
+      esac ;;
+    u_self_update)
+      case $LN in
+        zh) echo "更新 lvnode 管理脚本" ;;
+        vi) echo "Cập nhật script quản lý lvnode" ;;
+        *)  echo "Update lvnode management script" ;;
+      esac ;;
+    u_version)
+      case $LN in
+        zh) echo "查看版本" ;;
+        vi) echo "Xem phiên bản" ;;
+        *)  echo "Show version" ;;
+      esac ;;
+    new_usage)
+      case $LN in
+        zh) echo "用法: lvnode new <name> [api_host=... api_key=... node_id=... levals_key=...]" ;;
+        vi) echo "Cách dùng: lvnode new <name> [api_host=... api_key=... node_id=... levals_key=...]" ;;
+        *)  echo "Usage: lvnode new <name> [api_host=... api_key=... node_id=... levals_key=...]" ;;
+      esac ;;
+    inst_exists)
+      case $LN in
+        zh) echo "实例已存在" ;;
+        vi) echo "Instance đã tồn tại" ;;
+        *)  echo "Instance already exists" ;;
+      esac ;;
+    invalid_param)
+      case $LN in
+        zh) echo "参数无效（需要 key=value 格式）。" ;;
+        vi) echo "Tham số không hợp lệ (cần dạng khoá=giá_trị)." ;;
+        *)  echo "Invalid parameter (key=value format required)." ;;
+      esac ;;
+    prompt_api_host)
+      case $LN in
+        zh) echo "面板地址 (api_host)" ;;
+        vi) echo "Địa chỉ Panel (api_host)" ;;
+        *)  echo "Panel address (api_host)" ;;
+      esac ;;
+    prompt_api_key)
+      case $LN in
+        zh) echo "面板 Token (api_key)" ;;
+        vi) echo "Token Panel (api_key)" ;;
+        *)  echo "Panel Token (api_key)" ;;
+      esac ;;
+    inherited)
+      case $LN in
+        zh) echo "已继承" ;;
+        vi) echo "đã kế thừa" ;;
+        *)  echo "inherited" ;;
+      esac ;;
+    prompt_node_id)
+      echo "Node ID [1]: " ;;
+    prompt_levals_key)
+      case $LN in
+        zh) echo "许可证 levals_key" ;;
+        vi) echo "Giấy phép levals_key" ;;
+        *)  echo "License levals_key" ;;
+      esac ;;
+    prompt_node_type)
+      case $LN in
+        zh) echo "协议类型 node_type（levals 面板留空）: " ;;
+        vi) echo "Loại giao thức node_type (để trống nếu dùng panel levals): " ;;
+        *)  echo "Protocol node_type (leave empty for levals panel): " ;;
+      esac ;;
+    created_started)
+      case $LN in
+        zh) echo "已创建并启动实例" ;;
+        vi) echo "Đã tạo & khởi động instance" ;;
+        *)  echo "Created & started instance" ;;
+      esac ;;
+    remove_usage)
+      case $LN in
+        zh) echo "用法: lvnode remove <name> [name...]" ;;
+        vi) echo "Cách dùng: lvnode remove <name> [name...]" ;;
+        *)  echo "Usage: lvnode remove <name> [name...]" ;;
+      esac ;;
+    inst_not_found)
+      case $LN in
+        zh) echo "未找到实例" ;;
+        vi) echo "Không tìm thấy instance" ;;
+        *)  echo "Instance not found" ;;
+      esac ;;
+    skipping)
+      case $LN in
+        zh) echo "跳过。" ;;
+        vi) echo "bỏ qua." ;;
+        *)  echo "skipping." ;;
+      esac ;;
+    removed_inst)
+      case $LN in
+        zh) echo "已删除实例" ;;
+        vi) echo "Đã xoá instance" ;;
+        *)  echo "Removed instance" ;;
+      esac ;;
+    rename_usage)
+      case $LN in
+        zh) echo "用法: lvnode rename <old_name> <new_name>" ;;
+        vi) echo "Cách dùng: lvnode rename <old_name> <new_name>" ;;
+        *)  echo "Usage: lvnode rename <old_name> <new_name>" ;;
+      esac ;;
+    inst_not_exist)
+      case $LN in
+        zh) echo "实例不存在。" ;;
+        vi) echo "Instance không tồn tại." ;;
+        *)  echo "Instance does not exist." ;;
+      esac ;;
+    renamed_inst)
+      case $LN in
+        zh) echo "已重命名实例" ;;
+        vi) echo "Đã đổi tên instance" ;;
+        *)  echo "Renamed instance" ;;
+      esac ;;
+    inst_no_exist_hint)
+      case $LN in
+        zh) echo "不存在（使用 'lvnode list' 检查）。" ;;
+        vi) echo "không tồn tại (dùng 'lvnode list' để kiểm tra)." ;;
+        *)  echo "does not exist (use 'lvnode list' to check)." ;;
+      esac ;;
+    reloaded_config)
+      case $LN in
+        zh) echo "已重新加载配置" ;;
+        vi) echo "Đã nạp lại cấu hình" ;;
+        *)  echo "Reloaded config" ;;
+      esac ;;
+    enabled_boot)
+      case $LN in
+        zh) echo "已启用开机自启" ;;
+        vi) echo "Đã bật tự khởi động cùng máy cho" ;;
+        *)  echo "Enabled auto-start on boot for" ;;
+      esac ;;
+    disabled_boot)
+      case $LN in
+        zh) echo "已禁用开机自启" ;;
+        vi) echo "Đã tắt tự khởi động cùng máy cho" ;;
+        *)  echo "Disabled auto-start on boot for" ;;
+      esac ;;
+    missing_n_lines)
+      case $LN in
+        zh) echo "缺少 -n 后的行数" ;;
+        vi) echo "Thiếu số dòng sau -n" ;;
+        *)  echo "Missing line count after -n" ;;
+      esac ;;
+    unknown_param)
+      case $LN in
+        zh) echo "未知参数" ;;
+        vi) echo "Tham số không rõ" ;;
+        *)  echo "Unknown parameter" ;;
+      esac ;;
+    viewing_log)
+      case $LN in
+        zh) echo "正在查看实时合并日志 — 按 Ctrl+C 退出：" ;;
+        vi) echo "Đang xem log realtime hợp nhất — bấm Ctrl+C để thoát:" ;;
+        *)  echo "Viewing realtime merged log — press Ctrl+C to exit:" ;;
+      esac ;;
+    invalid_config_param)
+      case $LN in
+        zh) echo "无效的配置参数（需要 k1=v1 格式）。" ;;
+        vi) echo "Tham số cấu hình không hợp lệ (cần dạng k1=v1)." ;;
+        *)  echo "Invalid config parameter (k1=v1 format required)." ;;
+      esac ;;
+    no_config)
+      case $LN in
+        zh) echo "配置文件不存在" ;;
+        vi) echo "Chưa có file cấu hình" ;;
+        *)  echo "Config file not found" ;;
+      esac ;;
+    set_key_in)
+      case $LN in
+        zh) echo "已设置" ;;
+        vi) echo "Đã đặt" ;;
+        *)  echo "Set" ;;
+      esac ;;
+    auto_restarted)
+      case $LN in
+        zh) echo "已自动重启" ;;
+        vi) echo "Đã tự khởi động lại" ;;
+        *)  echo "Auto-restarted" ;;
+      esac ;;
+    no_editor)
+      case $LN in
+        zh) echo "找不到 nano/vi/vim。请直接查看文件：" ;;
+        vi) echo "Không tìm thấy nano/vi/vim. Xem file tại:" ;;
+        *)  echo "Cannot find nano/vi/vim. View file at:" ;;
+      esac ;;
+    restart_confirm)
+      case $LN in
+        zh) echo "重启以应用更改？[Y/n]: " ;;
+        vi) echo "Khởi động lại để áp dụng thay đổi? [Y/n]: " ;;
+        *)  echo "Restart to apply changes? [Y/n]: " ;;
+      esac ;;
+    config_tip)
+      case $LN in
+        zh) echo "提示: 快速修改" ;;
+        vi) echo "Mẹo: sửa nhanh bằng" ;;
+        *)  echo "Tip: quick edit with" ;;
+      esac ;;
+    config_or_editor)
+      case $LN in
+        zh) echo "或打开编辑器" ;;
+        vi) echo "hoặc mở trình sửa bằng" ;;
+        *)  echo "or open editor with" ;;
+      esac ;;
+    arch_unsupported)
+      case $LN in
+        zh) echo "不支持的架构（仅支持 x86_64 和 aarch64）。" ;;
+        vi) echo "Kiến trúc chưa hỗ trợ (chỉ hỗ trợ x86_64 và aarch64)." ;;
+        *)  echo "Unsupported architecture (only x86_64 and aarch64 supported)." ;;
+      esac ;;
+    downloading_ver)
+      case $LN in
+        zh) echo "正在下载 levals-node 版本" ;;
+        vi) echo "Đang tải levals-node phiên bản" ;;
+        *)  echo "Downloading levals-node version" ;;
+      esac ;;
+    downloading_latest)
+      case $LN in
+        zh) echo "正在下载最新版 levals-node" ;;
+        vi) echo "Đang tải levals-node bản mới nhất" ;;
+        *)  echo "Downloading latest levals-node" ;;
+      esac ;;
+    dl_fail)
+      case $LN in
+        zh) echo "无法下载 binary（请检查版本名或网络连接）。" ;;
+        vi) echo "Không tải được binary (kiểm tra tên phiên bản hoặc kết nối mạng)." ;;
+        *)  echo "Failed to download binary (check version name or network)." ;;
+      esac ;;
+    dl_empty)
+      case $LN in
+        zh) echo "下载的文件为空。" ;;
+        vi) echo "File tải về rỗng." ;;
+        *)  echo "Downloaded file is empty." ;;
+      esac ;;
+    updated_binary)
+      case $LN in
+        zh) echo "已更新 binary:" ;;
+        vi) echo "Đã cập nhật binary:" ;;
+        *)  echo "Updated binary:" ;;
+      esac ;;
+    synced_lvnode)
+      case $LN in
+        zh) echo "已同步最新 lvnode 管理脚本。" ;;
+        vi) echo "Đã đồng bộ script quản lý lvnode mới nhất." ;;
+        *)  echo "Synced latest lvnode management script." ;;
+      esac ;;
+    removed_cron)
+      case $LN in
+        zh) echo "已移除旧 cron xbn-kcfg（避免 WireGuard 会话冲突）。" ;;
+        vi) echo "Đã gỡ cron xbn-kcfg cũ (tránh tranh chấp session WireGuard)." ;;
+        *)  echo "Removed old cron xbn-kcfg (avoid WireGuard session conflict)." ;;
+      esac ;;
+    removed_wg_iface)
+      case $LN in
+        zh) echo "已关闭旧 WireGuard 接口:" ;;
+        vi) echo "Đã hạ interface WireGuard cũ:" ;;
+        *)  echo "Brought down old WireGuard interface:" ;;
+      esac ;;
+    restarted_inst)
+      case $LN in
+        zh) echo "已重启" ;;
+        vi) echo "Đã khởi động lại" ;;
+        *)  echo "Restarted" ;;
+      esac ;;
+    updating_lvnode)
+      case $LN in
+        zh) echo "正在更新 lvnode 管理脚本…" ;;
+        vi) echo "Đang cập nhật script quản lý lvnode…" ;;
+        *)  echo "Updating lvnode management script…" ;;
+      esac ;;
+    dl_script_fail)
+      case $LN in
+        zh) echo "无法从 GitHub 下载 lvnode 脚本。" ;;
+        vi) echo "Không tải được script lvnode từ GitHub." ;;
+        *)  echo "Failed to download lvnode script from GitHub." ;;
+      esac ;;
+    dl_invalid)
+      case $LN in
+        zh) echo "下载内容无效。" ;;
+        vi) echo "Nội dung tải về không hợp lệ." ;;
+        *)  echo "Downloaded content is invalid." ;;
+      esac ;;
+    updated_lvnode)
+      case $LN in
+        zh) echo "已成功更新 lvnode" ;;
+        vi) echo "Đã cập nhật lvnode thành công" ;;
+        *)  echo "Successfully updated lvnode" ;;
+      esac ;;
+    ver_not_installed)
+      case $LN in
+        zh) echo "未安装" ;;
+        vi) echo "chưa cài" ;;
+        *)  echo "not installed" ;;
+      esac ;;
+    bbr_ok)
+      case $LN in
+        zh) echo "BBR + 网络优化已启用" ;;
+        vi) echo "BBR + tối ưu mạng đã bật" ;;
+        *)  echo "BBR + network optimization enabled" ;;
+      esac ;;
+    bbr_partial)
+      case $LN in
+        zh) echo "已应用网络优化；BBR 未启用（需要内核 >= 4.9）。" ;;
+        vi) echo "Đã áp dụng tối ưu mạng; chưa bật được BBR (cần kernel >= 4.9)." ;;
+        *)  echo "Network optimization applied; BBR not enabled (requires kernel >= 4.9)." ;;
+      esac ;;
+    installing_speedtest)
+      case $LN in
+        zh) echo "正在安装 speedtest-cli…" ;;
+        vi) echo "Đang cài speedtest-cli…" ;;
+        *)  echo "Installing speedtest-cli…" ;;
+      esac ;;
+    speedtest_fail)
+      case $LN in
+        zh) echo "无法安装 speedtest-cli。" ;;
+        vi) echo "Không cài được speedtest-cli." ;;
+        *)  echo "Failed to install speedtest-cli." ;;
+      esac ;;
+    confirm_uninstall)
+      case $LN in
+        zh) echo "确定要完全卸载 levals-node 和所有实例吗？[y/N]: " ;;
+        vi) echo "Bạn có chắc chắn muốn gỡ hoàn toàn levals-node và mọi instance? [y/N]: " ;;
+        *)  echo "Are you sure you want to completely uninstall levals-node and all instances? [y/N]: " ;;
+      esac ;;
+    cancelled)
+      case $LN in
+        zh) echo "已取消。" ;;
+        vi) echo "Đã huỷ." ;;
+        *)  echo "Cancelled." ;;
+      esac ;;
+    pick_inst_prompt)
+      case $LN in
+        zh) echo "实例名（回车 = default）: " ;;
+        vi) echo "Tên instance (Enter = default): " ;;
+        *)  echo "Instance name (Enter = default): " ;;
+      esac ;;
+    menu_title)
+      case $LN in
+        zh) echo "levals-node 管理菜单" ;;
+        vi) echo "Menu quản lý levals-node" ;;
+        *)  echo "levals-node management menu" ;;
+      esac ;;
+    m_list)
+      case $LN in
+        zh) echo "列出实例及状态 (list)" ;;
+        vi) echo "Liệt kê các instance & trạng thái (list)" ;;
+        *)  echo "List instances & status (list)" ;;
+      esac ;;
+    m_new)
+      case $LN in
+        zh) echo "创建新实例 (new)" ;;
+        vi) echo "Tạo instance mới (new)" ;;
+        *)  echo "Create new instance (new)" ;;
+      esac ;;
+    m_remove)
+      case $LN in
+        zh) echo "删除实例 (remove)" ;;
+        vi) echo "Xoá instance (remove)" ;;
+        *)  echo "Remove instance (remove)" ;;
+      esac ;;
+    m_rename)
+      case $LN in
+        zh) echo "重命名实例 (rename)" ;;
+        vi) echo "Đổi tên instance (rename)" ;;
+        *)  echo "Rename instance (rename)" ;;
+      esac ;;
+    m_start)
+      case $LN in
+        zh) echo "启动实例 (start)" ;;
+        vi) echo "Khởi động instance (start)" ;;
+        *)  echo "Start instance (start)" ;;
+      esac ;;
+    m_stop)
+      case $LN in
+        zh) echo "停止实例 (stop)" ;;
+        vi) echo "Dừng instance (stop)" ;;
+        *)  echo "Stop instance (stop)" ;;
+      esac ;;
+    m_restart)
+      case $LN in
+        zh) echo "重启实例 (restart)" ;;
+        vi) echo "Khởi động lại instance (restart)" ;;
+        *)  echo "Restart instance (restart)" ;;
+      esac ;;
+    m_enable)
+      case $LN in
+        zh) echo "设置开机自启 (enable)" ;;
+        vi) echo "Bật tự chạy khi khởi động máy (enable)" ;;
+        *)  echo "Enable auto-start on boot (enable)" ;;
+      esac ;;
+    m_disable)
+      case $LN in
+        zh) echo "禁用开机自启 (disable)" ;;
+        vi) echo "Tắt tự chạy khi khởi động máy (disable)" ;;
+        *)  echo "Disable auto-start on boot (disable)" ;;
+      esac ;;
+    m_log)
+      case $LN in
+        zh) echo "查看实时合并日志 (log)" ;;
+        vi) echo "Xem log realtime hợp nhất (log)" ;;
+        *)  echo "View realtime merged log (log)" ;;
+      esac ;;
+    m_config)
+      case $LN in
+        zh) echo "查看/编辑配置文件 (config)" ;;
+        vi) echo "Xem / Sửa file cấu hình (config)" ;;
+        *)  echo "View / Edit config file (config)" ;;
+      esac ;;
+    m_update)
+      case $LN in
+        zh) echo "更新 levals-node binary (update)" ;;
+        vi) echo "Cập nhật binary levals-node (update)" ;;
+        *)  echo "Update levals-node binary (update)" ;;
+      esac ;;
+    m_self_update)
+      case $LN in
+        zh) echo "更新 lvnode 管理脚本 (self-update)" ;;
+        vi) echo "Cập nhật script quản lý lvnode (self-update)" ;;
+        *)  echo "Update lvnode management script (self-update)" ;;
+      esac ;;
+    m_bbr)
+      case $LN in
+        zh) echo "启用 BBR + fq 加速 (bbr)" ;;
+        vi) echo "Bật tăng tốc BBR + fq (bbr)" ;;
+        *)  echo "Enable BBR + fq acceleration (bbr)" ;;
+      esac ;;
+    m_speedtest)
+      case $LN in
+        zh) echo "测速 (speedtest)" ;;
+        vi) echo "Đo tốc độ mạng máy chủ (speedtest)" ;;
+        *)  echo "Server network speed test (speedtest)" ;;
+      esac ;;
+    m_uninstall)
+      case $LN in
+        zh) echo "完全卸载 levals-node (uninstall)" ;;
+        vi) echo "Gỡ cài đặt hoàn toàn levals-node (uninstall)" ;;
+        *)  echo "Completely uninstall levals-node (uninstall)" ;;
+      esac ;;
+    m_exit)
+      case $LN in
+        zh) echo "退出" ;;
+        vi) echo "Thoát" ;;
+        *)  echo "Exit" ;;
+      esac ;;
+    m_choose)
+      case $LN in
+        zh) echo "选择功能 [0-16]: " ;;
+        vi) echo "Chọn chức năng [0-16]: " ;;
+        *)  echo "Choose option [0-16]: " ;;
+      esac ;;
+    m_new_name)
+      case $LN in
+        zh) echo "输入新实例名（例: sg2）: " ;;
+        vi) echo "Nhập tên instance mới (VD: sg2): " ;;
+        *)  echo "Enter new instance name (e.g. sg2): " ;;
+      esac ;;
+    m_del_name)
+      case $LN in
+        zh) echo "输入要删除的实例名: " ;;
+        vi) echo "Nhập tên instance cần xoá: " ;;
+        *)  echo "Enter instance name to remove: " ;;
+      esac ;;
+    m_old_name)
+      case $LN in
+        zh) echo "旧名: " ;;
+        vi) echo "Tên cũ: " ;;
+        *)  echo "Old name: " ;;
+      esac ;;
+    m_new_rename)
+      case $LN in
+        zh) echo "新名: " ;;
+        vi) echo "Tên mới: " ;;
+        *)  echo "New name: " ;;
+      esac ;;
+    m_ver_prompt)
+      case $LN in
+        zh) echo "要安装的版本（回车 = 最新版）: " ;;
+        vi) echo "Phiên bản cần cài (Enter = bản mới nhất): " ;;
+        *)  echo "Version to install (Enter = latest): " ;;
+      esac ;;
+    invalid_choice)
+      case $LN in
+        zh) echo "无效的选择。" ;;
+        vi) echo "Lựa chọn không hợp lệ." ;;
+        *)  echo "Invalid choice." ;;
+      esac ;;
+    unknown_cmd)
+      case $LN in
+        zh) echo "未知命令" ;;
+        vi) echo "Lệnh không rõ" ;;
+        *)  echo "Unknown command" ;;
+      esac ;;
+  esac
+}
+
 info(){ echo -e "${BLU}==${NC} $*"; }
 ok(){   echo -e "${GRN}✓${NC} $*"; }
 warn(){ echo -e "${YEL}! $*${NC}"; }
 die(){  echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
-need_root(){ [ "$(id -u)" = 0 ] || die "Cần chạy bằng quyền root (sudo)."; }
+need_root(){ [ "$(id -u)" = 0 ] || die "$(_m need_root)"; }
 
-# ── Ánh xạ tên instance -> tên service systemd & thư mục cấu hình ──
-# Instance mặc định ("", "default", "levals-node"):
+# ── Instance name → systemd service name & config directory ──
+# Default instance ("", "default", "levals-node"):
 #   service = levals-node          dir = /etc/levals-node
-# Instance đặt tên ("<name>"):
+# Named instance ("<name>"):
 #   service = levals-node-<name>   dir = /etc/levals-node-<name>
 INST_LABEL="default"
 INST_SVC="levals-node"
@@ -35,7 +748,7 @@ resolve_inst(){
     INST_DIR="/etc/levals-node"
   else
     raw="${raw#levals-node-}"
-    [[ "$raw" =~ ^[a-zA-Z0-9._-]+$ ]] || die "Tên instance không hợp lệ: '$raw' (chỉ dùng chữ, số, ., _, -)."
+    [[ "$raw" =~ ^[a-zA-Z0-9._-]+$ ]] || die "$(_m invalid_inst): '$raw' $(_m invalid_inst_detail)"
     INST_LABEL="$raw"
     INST_SVC="levals-node-$raw"
     INST_DIR="/etc/levals-node-$raw"
@@ -48,7 +761,7 @@ inst_exists(){
   [ -f "$INST_UNIT" ] || [ -d "$INST_DIR" ]
 }
 
-# Thu thập danh sách tất cả các instance hiện có (trả về tên truyền vào resolve_inst)
+# Collect all existing instances (returns names for resolve_inst)
 all_instances(){
   local found=()
   if [ -f "/etc/systemd/system/levals-node.service" ] || [ -f "/etc/levals-node/config.yml" ]; then
@@ -71,24 +784,24 @@ all_instances(){
 svc_state_badge(){
   local svc="$1"
   if systemctl is-active --quiet "$svc" 2>/dev/null; then
-    echo -e "${GRN}đang chạy${NC}"
+    echo -e "${GRN}$(_m state_running)${NC}"
   elif systemctl is-failed --quiet "$svc" 2>/dev/null; then
-    echo -e "${RED}lỗi / tự restart${NC}"
+    echo -e "${RED}$(_m state_error)${NC}"
   else
-    echo -e "${YEL}đã dừng${NC}"
+    echo -e "${YEL}$(_m state_stopped)${NC}"
   fi
 }
 
 svc_boot_badge(){
   local svc="$1"
   if systemctl is-enabled --quiet "$svc" 2>/dev/null; then
-    echo -e "${GRN}tự bật${NC}"
+    echo -e "${GRN}$(_m boot_enabled)${NC}"
   else
-    echo -e "${YEL}tắt${NC}"
+    echo -e "${YEL}$(_m boot_disabled)${NC}"
   fi
 }
 
-# Đọc nhanh giá trị khoá YAML đơn giản từ config.yml
+# Read a simple YAML key value from config.yml
 yaml_get(){
   local file="$1" key="$2"
   [ -f "$file" ] || return 0
@@ -103,7 +816,7 @@ yaml_get(){
   ' "$file"
 }
 
-# Sinh file systemd chuẩn (tự restart kể cả khi token hết hạn / bị ngắt / bị xoá để tự phục hồi ngay khi gia hạn)
+# Generate standard systemd unit file (always restart even on token expiry / disconnect / revocation for auto-recovery)
 write_unit(){
   local svc="$1" cfg="$2" unit="/etc/systemd/system/${1}.service"
   cat > "$unit" <<UNIT
@@ -124,7 +837,7 @@ WantedBy=multi-user.target
 UNIT
 }
 
-# Sinh dns.yml & routes.yml mặc định cho instance mới nếu chưa có
+# Generate default dns.yml & routes.yml for new instance if not existing
 ensure_default_rules(){
   local dir="$1"
   mkdir -p "$dir"
@@ -184,7 +897,7 @@ ROUTES
   fi
 }
 
-# Chuẩn hoá giá trị YAML (số nguyên / bool giữ nguyên, chuỗi bọc ngoặc kép)
+# Normalize YAML value (integers / booleans kept as-is, strings quoted)
 fmt_yaml_val(){
   local v="$1"
   if [[ "$v" =~ ^[0-9]+$ ]] || [[ "$v" =~ ^(true|false)$ ]]; then
@@ -196,7 +909,7 @@ fmt_yaml_val(){
   fi
 }
 
-# Cập nhật hoặc thêm mới k=v vào file config.yml
+# Update or add k=v in config.yml
 set_yaml_kv(){
   local file="$1" raw_k="$2" raw_v="$3"
   local k="$raw_k"
@@ -255,27 +968,27 @@ set_yaml_kv(){
 
 usage(){
   echo -e ""
-  echo -e "${BLD}Cách sử dụng script quản lý lvnode:${NC}"
+  echo -e "${BLD}$(_m usage_title)${NC}"
   echo "--------------------------------------------------------------------"
-  echo "lvnode                              - Hiển thị menu quản lý (nhiều tính năng)"
-  echo "lvnode list                         - Liệt kê các instance hiện có & trạng thái"
-  echo "lvnode new <name> [k1=v1 ...]       - Tạo instance mới"
-  echo "lvnode remove <name> [name...]      - Xoá một hoặc nhiều instance"
-  echo "lvnode rename <old_name> <new_name> - Đổi tên instance"
-  echo "lvnode start [name]                 - Khởi động instance"
-  echo "lvnode stop [name]                  - Dừng instance"
-  echo "lvnode restart [name]               - Khởi động lại instance"
-  echo "lvnode enable [name]                - Bật tự chạy khi khởi động máy"
-  echo "lvnode disable [name]               - Tắt tự chạy khi khởi động máy"
-  echo "lvnode log [name]                   - Xem log realtime hợp nhất (agent + client)"
-  echo "lvnode log [name] -n <số_dòng>      - Xem N dòng log gần nhất (không chờ)"
-  echo "lvnode config [name]                - Xem file cấu hình của instance"
-  echo "lvnode config [name] -e             - Sửa file cấu hình bằng nano/vi"
-  echo "lvnode config [name] k1=v1 k2=v2    - Sửa hoặc thêm cấu hình & tự restart"
-  echo "lvnode update [version]             - Cài đặt / cập nhật binary levals-node"
-  echo "lvnode uninstall                    - Gỡ cài đặt hoàn toàn levals-node"
-  echo "lvnode self-update                  - Cập nhật script quản lý lvnode"
-  echo "lvnode version                      - Xem phiên bản"
+  echo "lvnode                              - $(_m u_menu)"
+  echo "lvnode list                         - $(_m u_list)"
+  echo "lvnode new <name> [k1=v1 ...]       - $(_m u_new)"
+  echo "lvnode remove <name> [name...]      - $(_m u_remove)"
+  echo "lvnode rename <old_name> <new_name> - $(_m u_rename)"
+  echo "lvnode start [name]                 - $(_m u_start)"
+  echo "lvnode stop [name]                  - $(_m u_stop)"
+  echo "lvnode restart [name]               - $(_m u_restart)"
+  echo "lvnode enable [name]                - $(_m u_enable)"
+  echo "lvnode disable [name]               - $(_m u_disable)"
+  echo "lvnode log [name]                   - $(_m u_log)"
+  echo "lvnode log [name] -n <N>            - $(_m u_log_n)"
+  echo "lvnode config [name]                - $(_m u_config)"
+  echo "lvnode config [name] -e             - $(_m u_config_e)"
+  echo "lvnode config [name] k1=v1 k2=v2    - $(_m u_config_kv)"
+  echo "lvnode update [version]             - $(_m u_update)"
+  echo "lvnode uninstall                    - $(_m u_uninstall)"
+  echo "lvnode self-update                  - $(_m u_self_update)"
+  echo "lvnode version                      - $(_m u_version)"
   echo "--------------------------------------------------------------------"
 }
 
@@ -283,10 +996,10 @@ cmd_list(){
   local items=()
   while IFS= read -r line; do [ -n "$line" ] && items+=("$line"); done < <(all_instances)
   if [ "${#items[@]}" -eq 0 ]; then
-    warn "Chưa có instance nào được tạo."
+    warn "$(_m no_instance)"
     return 0
   fi
-  printf "\n${BLD}%-16s %-24s %-16s %-8s %-10s %s${NC}\n" "INSTANCE" "TRẠNG THÁI" "KHỞI ĐỘNG" "NODE_ID" "LOẠI" "PANEL"
+  printf "\n${BLD}%-16s %-24s %-16s %-8s %-10s %s${NC}\n" "$(_m hdr_instance)" "$(_m hdr_status)" "$(_m hdr_boot)" "NODE_ID" "$(_m hdr_type)" "$(_m hdr_panel)"
   echo "----------------------------------------------------------------------------------------"
   local it nid stype host
   for it in "${items[@]}"; do
@@ -305,12 +1018,12 @@ cmd_list(){
 cmd_new(){
   need_root
   local name="${1:-}"
-  [ -n "$name" ] || die "Cách dùng: lvnode new <name> [api_host=... api_key=... node_id=... levals_key=...]"
+  [ -n "$name" ] || die "$(_m new_usage)"
   shift || true
   resolve_inst "$name"
-  inst_exists && die "Instance '$INST_LABEL' đã tồn tại ($INST_DIR)."
+  inst_exists && die "$(_m inst_exists) '$INST_LABEL' ($INST_DIR)."
 
-  # Lấy mặc định kế thừa từ instance gốc nếu có sẵn để tạo node thứ 2 siêu nhanh
+  # Inherit defaults from base instance if available for quick second-node creation
   local def_host="" def_key="" def_lkey="" def_type="levals"
   if [ -f "/etc/levals-node/config.yml" ]; then
     def_host="$(yaml_get /etc/levals-node/config.yml api_host)"
@@ -338,23 +1051,23 @@ YML
 
   local kv k v
   for kv in "$@"; do
-    [[ "$kv" == *=* ]] || die "Tham số không hợp lệ '$kv' (cần dạng khoá=giá_trị)."
+    [[ "$kv" == *=* ]] || die "$(_m invalid_param) '$kv'"
     k="${kv%%=*}"; v="${kv#*=}"
     set_yaml_kv "$INST_CFG" "$k" "$v"
   done
 
-  # Nếu chưa truyền tham số trên dòng lệnh mà chạy ở terminal tương tác → hỏi nhanh các trường chính
+  # If no CLI params and running in interactive terminal → prompt for key fields
   if [ "$#" -eq 0 ] && [ -t 0 ]; then
-    local in_host in_key in_nid in_lkey in_ntype
-    read -rp "Địa chỉ Panel (api_host) [${def_host}]: " in_host
+    local in_host="" in_key="" in_nid="" in_lkey="" in_ntype=""
+    read -rp "$(_m prompt_api_host) [${def_host}]: " in_host || { echo ""; return 0; }
     [ -n "${in_host:-}" ] && set_yaml_kv "$INST_CFG" "api_host" "$in_host"
-    read -rp "Token Panel (api_key) [${def_key:+đã kế thừa}]: " in_key
+    read -rp "$(_m prompt_api_key) [${def_key:+$(_m inherited)}]: " in_key || { echo ""; return 0; }
     [ -n "${in_key:-}" ] && set_yaml_kv "$INST_CFG" "api_key" "$in_key"
-    read -rp "Node ID [1]: " in_nid
+    read -rp "$(_m prompt_node_id)" in_nid || { echo ""; return 0; }
     [ -n "${in_nid:-}" ] && set_yaml_kv "$INST_CFG" "node_id" "$in_nid"
-    read -rp "Giấy phép levals_key [${def_lkey:+đã kế thừa}]: " in_lkey
+    read -rp "$(_m prompt_levals_key) [${def_lkey:+$(_m inherited)}]: " in_lkey || { echo ""; return 0; }
     [ -n "${in_lkey:-}" ] && set_yaml_kv "$INST_CFG" "levals_key" "$in_lkey"
-    read -rp "Loại giao thức node_type (để trống nếu dùng panel levals): " in_ntype
+    read -rp "$(_m prompt_node_type)" in_ntype || { echo ""; return 0; }
     [ -n "${in_ntype:-}" ] && set_yaml_kv "$INST_CFG" "node_type" "$in_ntype"
   fi
 
@@ -362,24 +1075,24 @@ YML
   systemctl daemon-reload
   systemctl enable -q "$INST_SVC" 2>/dev/null || true
   systemctl restart "$INST_SVC"
-  ok "Đã tạo & khởi động instance '$INST_LABEL' ($INST_SVC) → $(svc_state_badge "$INST_SVC")"
+  ok "$(_m created_started) '$INST_LABEL' ($INST_SVC) → $(svc_state_badge "$INST_SVC")"
 }
 
 cmd_remove(){
   need_root
-  [ "$#" -ge 1 ] || die "Cách dùng: lvnode remove <name> [name...]"
+  [ "$#" -ge 1 ] || die "$(_m remove_usage)"
   local name
   for name in "$@"; do
     resolve_inst "$name"
     if ! inst_exists; then
-      warn "Không tìm thấy instance '$INST_LABEL' — bỏ qua."
+      warn "$(_m inst_not_found) '$INST_LABEL' — $(_m skipping)"
       continue
     fi
     systemctl stop "$INST_SVC" 2>/dev/null || true
     systemctl disable -q "$INST_SVC" 2>/dev/null || true
     rm -f "$INST_UNIT"
     rm -rf "$INST_DIR"
-    ok "Đã xoá instance '$INST_LABEL' ($INST_SVC)"
+    ok "$(_m removed_inst) '$INST_LABEL' ($INST_SVC)"
   done
   systemctl daemon-reload 2>/dev/null || true
 }
@@ -387,14 +1100,14 @@ cmd_remove(){
 cmd_rename(){
   need_root
   local old_n="${1:-}" new_n="${2:-}"
-  [ -n "$old_n" ] && [ -n "$new_n" ] || die "Cách dùng: lvnode rename <old_name> <new_name>"
+  [ -n "$old_n" ] && [ -n "$new_n" ] || die "$(_m rename_usage)"
   resolve_inst "$old_n"
   local old_label="$INST_LABEL" old_svc="$INST_SVC" old_dir="$INST_DIR" old_unit="$INST_UNIT"
-  inst_exists || die "Instance '$old_label' không tồn tại."
+  inst_exists || die "'$old_label' $(_m inst_not_exist)"
 
   resolve_inst "$new_n"
   local new_label="$INST_LABEL" new_svc="$INST_SVC" new_dir="$INST_DIR" new_cfg="$INST_CFG"
-  inst_exists && die "Instance '$new_label' đã tồn tại."
+  inst_exists && die "$(_m inst_exists) '$new_label'."
 
   systemctl stop "$old_svc" 2>/dev/null || true
   systemctl disable -q "$old_svc" 2>/dev/null || true
@@ -406,14 +1119,14 @@ cmd_rename(){
   systemctl daemon-reload
   systemctl enable -q "$new_svc" 2>/dev/null || true
   systemctl restart "$new_svc"
-  ok "Đã đổi tên instance '$old_label' → '$new_label' ($new_svc): $(svc_state_badge "$new_svc")"
+  ok "$(_m renamed_inst) '$old_label' → '$new_label' ($new_svc): $(svc_state_badge "$new_svc")"
 }
 
 cmd_svc_act(){
   local act="$1" target="${2:-}"
   need_root
   resolve_inst "$target"
-  inst_exists || die "Instance '$INST_LABEL' không tồn tại (dùng 'lvnode list' để kiểm tra)."
+  inst_exists || die "'$INST_LABEL' $(_m inst_no_exist_hint)"
   case "$act" in
     start|stop|restart)
       systemctl "$act" "$INST_SVC"
@@ -421,20 +1134,20 @@ cmd_svc_act(){
       ;;
     reload)
       systemctl restart "$INST_SVC"
-      echo -e "Đã nạp lại cấu hình $INST_SVC ($INST_LABEL): $(svc_state_badge "$INST_SVC")"
+      echo -e "$(_m reloaded_config) $INST_SVC ($INST_LABEL): $(svc_state_badge "$INST_SVC")"
       ;;
     enable)
       systemctl enable -q "$INST_SVC"
-      ok "Đã bật tự khởi động cùng máy cho '$INST_LABEL' ($INST_SVC)."
+      ok "$(_m enabled_boot) '$INST_LABEL' ($INST_SVC)."
       ;;
     disable)
       systemctl disable -q "$INST_SVC"
-      ok "Đã tắt tự khởi động cùng máy cho '$INST_LABEL' ($INST_SVC)."
+      ok "$(_m disabled_boot) '$INST_LABEL' ($INST_SVC)."
       ;;
   esac
 }
 
-# Lệnh log DUY NHẤT hợp nhất cả log hệ thống agent + log kết nối client realtime
+# Unified log command merging system agent log + client connection log in realtime
 cmd_log(){
   local inst="" follow=1 lines=200 explicit_no_follow=0
   while [ "$#" -gt 0 ]; do
@@ -442,7 +1155,7 @@ cmd_log(){
       -f|--follow) follow=1 ;;
       --no-follow) follow=0; explicit_no_follow=1 ;;
       -n|--lines)
-        shift || die "Thiếu số dòng sau -n"
+        shift || die "$(_m missing_n_lines)"
         lines="${1:-1000}"
         [ "$explicit_no_follow" = 0 ] && follow=0
         ;;
@@ -451,18 +1164,18 @@ cmd_log(){
         [ "$explicit_no_follow" = 0 ] && follow=0
         ;;
       *)
-        if [ -z "$inst" ]; then inst="$1"; else die "Tham số không rõ: $1"; fi
+        if [ -z "$inst" ]; then inst="$1"; else die "$(_m unknown_param): $1"; fi
         ;;
     esac
     shift || true
   done
 
   resolve_inst "$inst"
-  inst_exists || die "Instance '$INST_LABEL' không tồn tại."
+  inst_exists || die "'$INST_LABEL' $(_m inst_not_exist)"
 
   if [ "$follow" -eq 1 ]; then
-    echo -e "${GRN}Đang xem log realtime hợp nhất của '$INST_LABEL' ($INST_SVC) — bấm Ctrl+C để thoát:${NC}"
-    # Với binary cũ (< 0.26.1) chưa gộp access.log vào stdout, tự ghép luồng access.log nếu có
+    echo -e "${GRN}$(_m viewing_log) '$INST_LABEL' ($INST_SVC)${NC}"
+    # For older binary (< 0.26.1) that doesn't merge access.log into stdout, manually merge access.log stream if present
     local bver
     bver="$("$BIN" --version 2>/dev/null | awk '{print $2}')"
     if [ -n "$bver" ] && [ "$(printf '%s\n0.26.1\n' "$bver" | sort -V | head -n1)" != "0.26.1" ] && [ -f "$INST_DIR/access.log" ]; then
@@ -487,7 +1200,7 @@ cmd_config(){
         if [ -z "$inst" ] && [ "${#kvs[@]}" -eq 0 ]; then
           inst="$1"
         else
-          die "Tham số cấu hình không hợp lệ: '$1' (cần dạng k1=v1)."
+          die "$(_m invalid_config_param) '$1'"
         fi
         ;;
     esac
@@ -495,7 +1208,7 @@ cmd_config(){
   done
 
   resolve_inst "$inst"
-  [ -f "$INST_CFG" ] || die "Chưa có file cấu hình $INST_CFG."
+  [ -f "$INST_CFG" ] || die "$(_m no_config) $INST_CFG."
 
   if [ "${#kvs[@]}" -gt 0 ]; then
     need_root
@@ -503,11 +1216,11 @@ cmd_config(){
     for kv in "${kvs[@]}"; do
       k="${kv%%=*}"; v="${kv#*=}"
       set_yaml_kv "$INST_CFG" "$k" "$v"
-      ok "Đã đặt $k trong $INST_CFG"
+      ok "$(_m set_key_in) $k → $INST_CFG"
     done
     if [ -f "$INST_UNIT" ]; then
       systemctl restart "$INST_SVC"
-      ok "Đã tự khởi động lại '$INST_LABEL' ($INST_SVC): $(svc_state_badge "$INST_SVC")"
+      ok "$(_m auto_restarted) '$INST_LABEL' ($INST_SVC): $(svc_state_badge "$INST_SVC")"
     fi
     return 0
   fi
@@ -516,10 +1229,11 @@ cmd_config(){
     need_root
     local ed="${EDITOR:-}"
     [ -z "$ed" ] && for e in nano vi vim; do command -v "$e" >/dev/null 2>&1 && { ed="$e"; break; }; done
-    [ -n "$ed" ] || die "Không tìm thấy nano/vi/vim. Xem file tại: $INST_CFG"
+    [ -n "$ed" ] || die "$(_m no_editor) $INST_CFG"
     "$ed" "$INST_CFG"
     if [ -t 0 ] && [ -f "$INST_UNIT" ]; then
-      read -rp "Khởi động lại '$INST_LABEL' để áp dụng thay đổi? [Y/n]: " ans
+      local ans=""
+      read -rp "$(_m restart_confirm) '$INST_LABEL' " ans || { echo ""; return 0; }
       [[ "${ans:-Y}" =~ ^[Yy]$ ]] && { systemctl restart "$INST_SVC"; ok "$INST_SVC: $(svc_state_badge "$INST_SVC")"; }
     fi
     return 0
@@ -529,18 +1243,18 @@ cmd_config(){
   echo "--------------------------------------------------------------------"
   cat "$INST_CFG"
   echo "--------------------------------------------------------------------"
-  echo -e "Mẹo: sửa nhanh bằng ${CYN}lvnode config${inst:+ $inst} k1=v1${NC} hoặc mở trình sửa bằng ${CYN}lvnode config${inst:+ $inst} -e${NC}"
+  echo -e "$(_m config_tip) ${CYN}lvnode config${inst:+ $inst} k1=v1${NC} $(_m config_or_editor) ${CYN}lvnode config${inst:+ $inst} -e${NC}"
 }
 
 detect_arch(){
   case "$(uname -m)" in
     x86_64|amd64)  echo "x86_64" ;;
     aarch64|arm64) echo "aarch64" ;;
-    *) die "Kiến trúc $(uname -m) chưa hỗ trợ (chỉ hỗ trợ x86_64 và aarch64)." ;;
+    *) die "$(uname -m): $(_m arch_unsupported)" ;;
   esac
 }
 
-# Đồng bộ lại toàn bộ unit systemd hiện có sang cấu hình tự restart mới (bỏ RestartPreventExitStatus=2)
+# Re-sync all existing systemd units to new always-restart config (remove RestartPreventExitStatus=2)
 upgrade_all_units(){
   local items=() it
   while IFS= read -r it; do [ -n "$it" ] && items+=("$it"); done < <(all_instances)
@@ -583,14 +1297,14 @@ SYSCTL
   if ! systemctl is-active --quiet xboard-node 2>/dev/null; then
     if crontab -l 2>/dev/null | grep -q 'xbn-kcfg'; then
       crontab -l 2>/dev/null | grep -v 'xbn-kcfg' | crontab - 2>/dev/null || true
-      ok "Đã gỡ cron xbn-kcfg cũ (tránh tranh chấp session WireGuard)."
+      ok "$(_m removed_cron)"
     fi
     rm -f /etc/cron.d/xbn-kcfg* /usr/local/bin/xbn-kcfg*.sh 2>/dev/null || true
     local dev
     for dev in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^sgw[0-9]+$' || true); do
       wg-quick down "$dev" >/dev/null 2>&1 || ip link del "$dev" >/dev/null 2>&1 || true
       systemctl disable --now "wg-quick@${dev}" >/dev/null 2>&1 || true
-      ok "Đã hạ interface WireGuard cũ: $dev"
+      ok "$(_m removed_wg_iface) $dev"
     done
   fi
 }
@@ -603,24 +1317,24 @@ cmd_update(){
   if [ -n "$req_ver" ]; then
     tag="v${req_ver#v}"
     url="$REL_BASE/download/$tag/levals-node-linux-$narch"
-    info "Đang tải levals-node phiên bản $tag ($narch)…"
+    info "$(_m downloading_ver) $tag ($narch)…"
   else
     url="$REL_BASE/latest/download/levals-node-linux-$narch"
-    info "Đang tải levals-node bản mới nhất ($narch)…"
+    info "$(_m downloading_latest) ($narch)…"
   fi
 
   mkdir -p /usr/local/bin
-  curl -fL --retry 3 -o "$BIN.new" "$url" || die "Không tải được binary từ $url (kiểm tra tên phiên bản hoặc kết nối mạng)."
-  [ -s "$BIN.new" ] || die "File tải về rỗng."
+  curl -fL --retry 3 -o "$BIN.new" "$url" || die "$(_m dl_fail) ($url)"
+  [ -s "$BIN.new" ] || die "$(_m dl_empty)"
   chmod +x "$BIN.new"
   mv -f "$BIN.new" "$BIN"
-  ok "Đã cập nhật binary: $($BIN --version 2>/dev/null || echo 'OK')"
+  ok "$(_m updated_binary) $($BIN --version 2>/dev/null || echo 'OK')"
 
-  # Tự cập nhật luôn script lvnode mới nhất (nếu tải được)
+  # Also auto-update lvnode script to latest (if downloadable)
   if curl -fsSL --retry 2 -o /usr/local/bin/lvnode.new "$RAW_BASE/lvnode?$(date +%s)" 2>/dev/null && head -n1 /usr/local/bin/lvnode.new | grep -q '^#!/bin/bash'; then
     chmod +x /usr/local/bin/lvnode.new
     mv -f /usr/local/bin/lvnode.new /usr/local/bin/lvnode
-    ok "Đã đồng bộ script quản lý lvnode mới nhất."
+    ok "$(_m synced_lvnode)"
   else
     rm -f /usr/local/bin/lvnode.new
   fi
@@ -634,27 +1348,27 @@ cmd_update(){
     resolve_inst "$it"
     if [ -f "$INST_UNIT" ]; then
       systemctl restart "$INST_SVC" 2>/dev/null || true
-      ok "Đã khởi động lại '$INST_LABEL' ($INST_SVC): $(svc_state_badge "$INST_SVC")"
+      ok "$(_m restarted_inst) '$INST_LABEL' ($INST_SVC): $(svc_state_badge "$INST_SVC")"
     fi
   done
 }
 
 cmd_self_update(){
   need_root
-  info "Đang cập nhật script quản lý lvnode…"
+  info "$(_m updating_lvnode)"
   curl -fsSL --retry 3 -o /usr/local/bin/lvnode.new "$RAW_BASE/lvnode?$(date +%s)" \
-    || die "Không tải được script lvnode từ GitHub."
+    || die "$(_m dl_script_fail)"
   head -n1 /usr/local/bin/lvnode.new | grep -q '^#!/bin/bash' \
-    || { rm -f /usr/local/bin/lvnode.new; die "Nội dung tải về không hợp lệ."; }
+    || { rm -f /usr/local/bin/lvnode.new; die "$(_m dl_invalid)"; }
   chmod +x /usr/local/bin/lvnode.new
   mv -f /usr/local/bin/lvnode.new /usr/local/bin/lvnode
   local new_ver
   new_ver="$(grep -m1 '^LVNODE_VER=' /usr/local/bin/lvnode | cut -d'"' -f2)"
-  ok "Đã cập nhật lvnode thành công (v${new_ver:-$LVNODE_VER})."
+  ok "$(_m updated_lvnode) (v${new_ver:-$LVNODE_VER})."
 }
 
 cmd_version(){
-  local bver="chưa cài"
+  local bver="$(_m ver_not_installed)"
   [ -x "$BIN" ] && bver="$("$BIN" --version 2>/dev/null | awk '{print $2}')"
   echo -e "${BLD}levals-node${NC} : ${GRN}${bver}${NC} ($(uname -m), engine: native Rust)"
   echo -e "${BLD}lvnode CLI${NC}  : v${LVNODE_VER}"
@@ -666,7 +1380,7 @@ cmd_bbr(){
   local cc qd
   cc="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo '?')"
   qd="$(sysctl -n net.core.default_qdisc 2>/dev/null || echo '?')"
-  [ "$cc" = "bbr" ] && ok "BBR + tối ưu mạng đã bật (congestion=$cc, qdisc=$qd)" || warn "Đã áp dụng tối ưu mạng; chưa bật được BBR (congestion=$cc, cần kernel >= 4.9)."
+  [ "$cc" = "bbr" ] && ok "$(_m bbr_ok) (congestion=$cc, qdisc=$qd)" || warn "$(_m bbr_partial)"
 }
 
 cmd_speedtest(){
@@ -674,106 +1388,131 @@ cmd_speedtest(){
   elif command -v speedtest-cli >/dev/null 2>&1; then speedtest-cli
   else
     need_root
-    info "Đang cài speedtest-cli…"
+    info "$(_m installing_speedtest)"
     (apt-get update -qq && apt-get install -y -qq speedtest-cli) >/dev/null 2>&1 \
       || yum install -y -q speedtest-cli >/dev/null 2>&1 \
       || pip3 install -q speedtest-cli >/dev/null 2>&1 || true
-    command -v speedtest-cli >/dev/null 2>&1 && speedtest-cli || die "Không cài được speedtest-cli."
+    command -v speedtest-cli >/dev/null 2>&1 && speedtest-cli || die "$(_m speedtest_fail)"
   fi
 }
 
 cmd_uninstall(){
   need_root
   if [ -t 0 ] && [ "${FORCE:-0}" != "1" ]; then
-    read -rp "Bạn có chắc chắn muốn gỡ hoàn toàn levals-node và mọi instance? [y/N]: " ans
-    [[ "${ans:-N}" =~ ^[Yy]$ ]] || { echo "Đã huỷ."; return 0; }
+    local ans=""
+    read -rp "$(_m confirm_uninstall)" ans || { echo ""; return 0; }
+    [[ "${ans:-N}" =~ ^[Yy]$ ]] || { echo "$(_m cancelled)"; return 0; }
   fi
   curl -fsSL "$RAW_BASE/uninstall.sh?$(date +%s)" | bash
 }
 
 pick_inst_interactive(){
-  local prompt="${1:-Tên instance (Enter = default)}: " inp
-  read -rp "$prompt" inp
+  local prompt="${1:-$(_m pick_inst_prompt)}" inp=""
+  read -t 600 -rp "$prompt" inp || return 1
   printf '%s' "${inp:-}"
 }
 
 interactive_menu(){
-  if [ ! -t 0 ]; then
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
     cmd_version
     cmd_list
     usage
     return 0
   fi
-  while true; do
+  while [ -t 0 ] && [ -t 1 ]; do
     echo -e ""
-    echo -e "${BLD}================ Menu quản lý levals-node (v${LVNODE_VER}) ================${NC}"
+    echo -e "${BLD}================ $(_m menu_title) (v${LVNODE_VER}) ================${NC}"
     cmd_version
     echo "--------------------------------------------------------------------"
-    echo -e "  ${GRN}1.${NC} Liệt kê các instance & trạng thái (list)"
-    echo -e "  ${GRN}2.${NC} Tạo instance mới (new)"
-    echo -e "  ${GRN}3.${NC} Xoá instance (remove)"
-    echo -e "  ${GRN}4.${NC} Đổi tên instance (rename)"
+    echo -e "  ${GRN}1.${NC} $(_m m_list)"
+    echo -e "  ${GRN}2.${NC} $(_m m_new)"
+    echo -e "  ${GRN}3.${NC} $(_m m_remove)"
+    echo -e "  ${GRN}4.${NC} $(_m m_rename)"
     echo "--------------------------------------------------------------------"
-    echo -e "  ${GRN}5.${NC} Khởi động instance (start)"
-    echo -e "  ${GRN}6.${NC} Dừng instance (stop)"
-    echo -e "  ${GRN}7.${NC} Khởi động lại instance (restart)"
-    echo -e "  ${GRN}8.${NC} Bật tự chạy khi khởi động máy (enable)"
-    echo -e "  ${GRN}9.${NC} Tắt tự chạy khi khởi động máy (disable)"
+    echo -e "  ${GRN}5.${NC} $(_m m_start)"
+    echo -e "  ${GRN}6.${NC} $(_m m_stop)"
+    echo -e "  ${GRN}7.${NC} $(_m m_restart)"
+    echo -e "  ${GRN}8.${NC} $(_m m_enable)"
+    echo -e "  ${GRN}9.${NC} $(_m m_disable)"
     echo "--------------------------------------------------------------------"
-    echo -e "  ${GRN}10.${NC} Xem log realtime hợp nhất (log)"
-    echo -e "  ${GRN}11.${NC} Xem / Sửa file cấu hình (config)"
-    echo -e "  ${GRN}12.${NC} Cập nhật binary levals-node (update)"
-    echo -e "  ${GRN}13.${NC} Cập nhật script quản lý lvnode (self-update)"
-    echo -e "  ${GRN}14.${NC} Bật tăng tốc BBR + fq (bbr)"
-    echo -e "  ${GRN}15.${NC} Đo tốc độ mạng máy chủ (speedtest)"
-    echo -e "  ${RED}16.${NC} Gỡ cài đặt hoàn toàn levals-node (uninstall)"
-    echo -e "  ${YEL}0.${NC} Thoát"
+    echo -e "  ${GRN}10.${NC} $(_m m_log)"
+    echo -e "  ${GRN}11.${NC} $(_m m_config)"
+    echo -e "  ${GRN}12.${NC} $(_m m_update)"
+    echo -e "  ${GRN}13.${NC} $(_m m_self_update)"
+    echo -e "  ${GRN}14.${NC} $(_m m_bbr)"
+    echo -e "  ${GRN}15.${NC} $(_m m_speedtest)"
+    echo -e "  ${RED}16.${NC} $(_m m_uninstall)"
+    echo -e "  ${YEL}0.${NC} $(_m m_exit)"
     echo "--------------------------------------------------------------------"
-    local ch target old_n new_n ver
-    read -rp "Chọn chức năng [0-16]: " ch
+    local ch="" target="" old_n="" new_n="" ver=""
+    # Exit immediately on SSH disconnect / EOF (rc != 0) or 10-minute idle timeout to prevent CPU spin!
+    if ! read -t 600 -rp "$(_m m_choose)" ch; then
+      echo ""
+      exit 0
+    fi
     case "${ch:-}" in
       1)  cmd_list ;;
-      2)  read -rp "Nhập tên instance mới (VD: sg2): " new_n; [ -n "${new_n:-}" ] && (cmd_new "$new_n") || true ;;
-      3)  cmd_list; read -rp "Nhập tên instance cần xoá: " target; [ -n "${target:-}" ] && (cmd_remove "$target") || true ;;
-      4)  cmd_list; read -rp "Tên cũ: " old_n; read -rp "Tên mới: " new_n; [ -n "${old_n:-}" ] && [ -n "${new_n:-}" ] && (cmd_rename "$old_n" "$new_n") || true ;;
-      5)  target="$(pick_inst_interactive)"; (cmd_svc_act start "$target") || true ;;
-      6)  target="$(pick_inst_interactive)"; (cmd_svc_act stop "$target") || true ;;
-      7)  target="$(pick_inst_interactive)"; (cmd_svc_act restart "$target") || true ;;
-      8)  target="$(pick_inst_interactive)"; (cmd_svc_act enable "$target") || true ;;
-      9)  target="$(pick_inst_interactive)"; (cmd_svc_act disable "$target") || true ;;
-      10) target="$(pick_inst_interactive)"; (cmd_log "$target") || true ;;
-      11) target="$(pick_inst_interactive)"; (cmd_config "$target" -e) || true ;;
-      12) read -rp "Phiên bản cần cài (Enter = bản mới nhất): " ver; (cmd_update "${ver:-}") || true ;;
+      2)  read -t 600 -rp "$(_m m_new_name)" new_n || { echo ""; exit 0; }; [ -n "${new_n:-}" ] && (cmd_new "$new_n") || true ;;
+      3)  cmd_list; read -t 600 -rp "$(_m m_del_name)" target || { echo ""; exit 0; }; [ -n "${target:-}" ] && (cmd_remove "$target") || true ;;
+      4)  cmd_list; read -t 600 -rp "$(_m m_old_name)" old_n || { echo ""; exit 0; }; read -t 600 -rp "$(_m m_new_rename)" new_n || { echo ""; exit 0; }; [ -n "${old_n:-}" ] && [ -n "${new_n:-}" ] && (cmd_rename "$old_n" "$new_n") || true ;;
+      5)  target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_svc_act start "$target") || true ;;
+      6)  target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_svc_act stop "$target") || true ;;
+      7)  target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_svc_act restart "$target") || true ;;
+      8)  target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_svc_act enable "$target") || true ;;
+      9)  target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_svc_act disable "$target") || true ;;
+      10) target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_log "$target") || true ;;
+      11) target="$(pick_inst_interactive)" || { echo ""; exit 0; }; (cmd_config "$target" -e) || true ;;
+      12) read -t 600 -rp "$(_m m_ver_prompt)" ver || { echo ""; exit 0; }; (cmd_update "${ver:-}") || true ;;
       13) (cmd_self_update) || true ;;
       14) (cmd_bbr) || true ;;
       15) (cmd_speedtest) || true ;;
       16) (cmd_uninstall) || true; break ;;
       0|q|exit) exit 0 ;;
-      *) warn "Lựa chọn không hợp lệ." ;;
+      *) warn "$(_m invalid_choice)" ;;
     esac
   done
 }
 
-ACTION="${1:-}"
-[ "$#" -gt 0 ] && shift || true
+# ── Parse --lang flag before action ──
+ACTION=""
+ARGS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --lang)
+      shift || true
+      LN="${1:-en}"
+      ;;
+    --lang=*)
+      LN="${1#--lang=}"
+      ;;
+    *)
+      if [ -z "$ACTION" ]; then
+        ACTION="$1"
+      else
+        ARGS+=("$1")
+      fi
+      ;;
+  esac
+  shift || true
+done
 
 case "$ACTION" in
   "")                     interactive_menu ;;
   list|ls)                cmd_list ;;
-  status)                 if [ -n "${1:-}" ]; then resolve_inst "$1"; echo -e "$INST_SVC ($INST_LABEL): $(svc_state_badge "$INST_SVC")"; systemctl status "$INST_SVC" --no-pager -l 2>/dev/null | sed -n '1,8p'; else cmd_list; fi ;;
-  new|add|create)         cmd_new "$@" ;;
-  remove|rm|del|delete)   cmd_remove "$@" ;;
-  rename|mv)              cmd_rename "$@" ;;
+  status)                 if [ -n "${ARGS[0]:-}" ]; then resolve_inst "${ARGS[0]}"; echo -e "$INST_SVC ($INST_LABEL): $(svc_state_badge "$INST_SVC")"; systemctl status "$INST_SVC" --no-pager -l 2>/dev/null | sed -n '1,8p'; else cmd_list; fi ;;
+  new|add|create)         cmd_new ${ARGS[@]+"${ARGS[@]}"} ;;
+  remove|rm|del|delete)   cmd_remove ${ARGS[@]+"${ARGS[@]}"} ;;
+  rename|mv)              cmd_rename ${ARGS[@]+"${ARGS[@]}"} ;;
   start|stop|restart|reload|enable|disable)
-                          cmd_svc_act "$ACTION" "${1:-}" ;;
-  log|logs|access)        cmd_log "$@" ;;
-  config|cfg)             cmd_config "$@" ;;
-  update|upgrade)         cmd_update "${1:-}" ;;
+                          cmd_svc_act "$ACTION" "${ARGS[0]:-}" ;;
+  log|logs|access)        cmd_log ${ARGS[@]+"${ARGS[@]}"} ;;
+  config|cfg)             cmd_config ${ARGS[@]+"${ARGS[@]}"} ;;
+  update|upgrade)         cmd_update "${ARGS[0]:-}" ;;
   self-update|selfupdate) cmd_self_update ;;
   version|-v|--version)   cmd_version ;;
   bbr)                    cmd_bbr ;;
   speedtest)              cmd_speedtest ;;
   uninstall)              cmd_uninstall ;;
   -h|--help|help)         usage ;;
-  *)                      warn "Lệnh không rõ: '$ACTION'"; usage; exit 1 ;;
+  *)                      warn "$(_m unknown_cmd): '$ACTION'"; usage; exit 1 ;;
 esac
