@@ -192,6 +192,12 @@ _im(){
         vi) echo "chưa lên ngay — 20 dòng log gần nhất (dịch vụ vẫn đang tự động thử lại nền):" ;;
         *)  echo "not active yet — last 20 log lines (systemd is retrying in background):" ;;
       esac ;;
+    auto_inst)
+      case $LN in
+        zh) echo "检测到已有其他节点运行 — 自动创建独立实例" ;;
+        vi) echo "Phát hiện VPS đang chạy node khác — tự động tách sang instance độc lập" ;;
+        *)  echo "Detected existing active node on this VPS — auto-provisioning isolated instance" ;;
+      esac ;;
   esac
 }
 
@@ -260,9 +266,68 @@ reap_orphan_lvnode(){
 }
 reap_orphan_lvnode
 
+yaml_val(){
+  local f="$1" k="$2"
+  [ -f "$f" ] || return 0
+  awk -F':' -v k="$k" '
+    $0 ~ "^[[:space:]]*"k"[[:space:]]*:" {
+      sub("^[[:space:]]*"k"[[:space:]]*:[[:space:]]*", "", $0)
+      sub("[[:space:]]+#.*$", "", $0)
+      gsub(/^["'\'']|["'\'']$/, "", $0)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+      print $0
+      exit
+    }
+  ' "$f"
+}
+
 API_PORT=${API_PORT:-10085}
 LIB=/usr/local/lib/levals-node
 GEO="$LIB/geo"
+
+# Auto-detect multi-node on the same VPS when --instance / INSTANCE is not explicitly passed
+FORCE_WRITE_CFG=0
+if [ -z "${INSTANCE:-}" ] && [ -n "${PANEL_URL:-}" ] && [ -n "${TOKEN:-}" ] && [ -n "${NODE_ID:-}" ] && [ -n "${LEVALS_KEY:-}" ]; then
+  norm_url="${PANEL_URL%/}"
+  matched_dir=""
+  for d in /etc/levals-node /etc/levals-node-*; do
+    [ -f "$d/config.yml" ] || continue
+    eh="$(yaml_val "$d/config.yml" api_host)"; [ -z "$eh" ] && eh="$(yaml_val "$d/config.yml" url)"
+    eh="${eh%/}"
+    en="$(yaml_val "$d/config.yml" node_id)"
+    et="$(yaml_val "$d/config.yml" node_type)"
+    if [ "$eh" = "$norm_url" ] && [ "$en" = "$NODE_ID" ] && [ "${et:-}" = "${NODE_TYPE:-}" ]; then
+      matched_dir="$d"
+      break
+    fi
+  done
+
+  if [ -n "$matched_dir" ]; then
+    if [ "$matched_dir" = "/etc/levals-node" ]; then
+      INSTANCE="default"
+    else
+      INSTANCE="${matched_dir#/etc/levals-node-}"
+    fi
+    FORCE_WRITE_CFG=1
+  elif [ -f "/etc/levals-node/config.yml" ]; then
+    base_host="$(yaml_val /etc/levals-node/config.yml api_host)"
+    base_key="$(yaml_val /etc/levals-node/config.yml api_key)"
+    if [ -n "$base_host" ] && [ "$base_host" != "https://your-panel.example.com" ] && [ "$base_key" != "YOUR_PANEL_COMMUNICATION_KEY" ]; then
+      cand="node${NODE_ID}"
+      [ -n "${NODE_TYPE:-}" ] && [ -e "/etc/levals-node-${cand}" ] && cand="node${NODE_ID}-${NODE_TYPE}"
+      idx=2
+      while [ -e "/etc/levals-node-${cand}" ]; do
+        cand="node${NODE_ID}-${idx}"
+        idx=$((idx + 1))
+      done
+      INSTANCE="$cand"
+      ok "$(_im auto_inst): levals-node-${INSTANCE} (NODE_ID=${NODE_ID})"
+    else
+      FORCE_WRITE_CFG=1
+    fi
+  fi
+fi
+
 if [ -n "${INSTANCE:-}" ] && [ "${INSTANCE}" != "default" ] && [ "${INSTANCE}" != "levals-node" ]; then
   CFG="/etc/levals-node-${INSTANCE#levals-node-}"
 else
@@ -358,7 +423,7 @@ ok "levals-node $(/usr/local/bin/levals-node --version 2>/dev/null | awk '{print
 # ── Configuration (supports both zero-touch flags/env AND template-first XrayR workflow) ──
 TEMPLATE_MODE=0
 info "$(_im cfg_sec)"
-if [ ! -f "$CFG/config.yml" ]; then
+if [ ! -f "$CFG/config.yml" ] || [ "$FORCE_WRITE_CFG" = "1" ]; then
   if [ -n "${PANEL_URL:-}" ] && [ -n "${TOKEN:-}" ] && [ -n "${NODE_ID:-}" ] && [ -n "${LEVALS_KEY:-}" ]; then
     KIND="${PANEL_KIND:-levals}"
     NTLINE=""
@@ -519,6 +584,16 @@ if [ "$TEMPLATE_MODE" = "1" ]; then
   [ -x /usr/local/bin/lvnode ] && LVNODE_LANG="$LN" /usr/local/bin/lvnode --lang "$LN" --help || true
   exit 0
 fi
+
+# Restart any active sibling instances onto the newly downloaded binary first so all nodes register WireGuard leases
+for u in /etc/systemd/system/levals-node.service /etc/systemd/system/levals-node-*.service; do
+  [ -f "$u" ] || continue
+  sib="$(basename "$u" .service)"
+  [ "$sib" = "$SVC_NAME" ] && continue
+  if systemctl is-active --quiet "$sib" 2>/dev/null; then
+    systemctl restart "$sib" 2>/dev/null || true
+  fi
+done
 
 systemctl restart "$SVC_NAME"
 
