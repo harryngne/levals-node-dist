@@ -1,14 +1,55 @@
 #!/bin/bash
-# levals-node · cài đặt (chạy bằng root). Chạy lại nhiều lần được.
+# levals-node · Install script (run as root). Safe to re-run.
 #
+# Method 1 (flags — recommended):
+#   bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
+#     --panel-url https://your-panel.com --token YOUR_TOKEN --node-id 1 --license YOUR_KEY
+#
+# Method 2 (env variables):
 #   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-#     PANEL_URL=https://dash.levals.org TOKEN=xxxx NODE_ID=1 bash
+#     PANEL_URL=https://your-panel.com TOKEN=xxxx NODE_ID=1 LEVALS_KEY=xxxx bash
 #
-# Biến: PANEL_URL, TOKEN, NODE_ID, ACME_STAGING=1 (test Let's Encrypt staging), BASE,
-#       PANEL_KIND=levals|xboard|v2board (mặc định levals — nhận dạng loại panel),
-#       NODE_TYPE=shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru (cần cho xboard/v2board),
-#       LEVALS_KEY=<giấy phép phần mềm levals-node> (BẮT BUỘC; khác TOKEN của panel).
-# Engine native thuần Rust là mặc định và duy nhất (không cần lõi ngoài).
+# All flags / env variables:
+#   --panel-url   / PANEL_URL    Panel URL (required for first install)
+#   --token       / TOKEN        Node API token from panel (required)
+#   --node-id     / NODE_ID      Node ID on panel (required)
+#   --license     / LEVALS_KEY   Software license key (required)
+#   --panel-kind  / PANEL_KIND   levals (default) | xboard | v2board
+#   --node-type   / NODE_TYPE    Protocol (required for xboard/v2board)
+#   --instance    / INSTANCE     Instance name for multi-instance
+#   --staging     / ACME_STAGING Use Let's Encrypt staging (testing)
+#
+# Engine: native Rust only (no external core needed).
+
+# ── Parse --flags (override env) ──
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --panel-url)  PANEL_URL="$2";   shift 2 ;;
+    --token)      TOKEN="$2";       shift 2 ;;
+    --node-id)    NODE_ID="$2";     shift 2 ;;
+    --license)    LEVALS_KEY="$2";  shift 2 ;;
+    --panel-kind) PANEL_KIND="$2";  shift 2 ;;
+    --node-type)  NODE_TYPE="$2";   shift 2 ;;
+    --instance)   INSTANCE="$2";    shift 2 ;;
+    --staging)    ACME_STAGING=1;   shift   ;;
+    --help|-h)
+      echo "Usage: bash install.sh [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --panel-url URL    Panel URL (e.g. https://dash.levals.org)"
+      echo "  --token TOKEN      Node API token from panel"
+      echo "  --node-id ID       Node ID on panel"
+      echo "  --license KEY      Software license key"
+      echo "  --panel-kind KIND  Panel type: levals|xboard|v2board (default: levals)"
+      echo "  --node-type TYPE   Protocol: shadowsocks|vmess|trojan|vless|..."
+      echo "  --instance NAME    Instance name (multi-instance)"
+      echo "  --staging          Use Let's Encrypt staging"
+      echo "  -h, --help         Show this help"
+      exit 0 ;;
+    *) echo "Unknown option: $1 (use --help)"; exit 1 ;;
+  esac
+done
+
 set -eo pipefail
 
 RED='\033[31m'; GRN='\033[32m'; YEL='\033[33m'; BLU='\033[36m'; NC='\033[0m'
