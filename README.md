@@ -24,39 +24,39 @@
 | Feature | Description |
 |---------|-------------|
 | 🦀 Pure Rust Engine | Native Rust binary — no sing-box, no xray, no external core needed |
-| 🖥️ Panel Support | Xboard / V2Board / Levals panel — auto-detect or manual config |
-| 🔄 Hot-Reload Users | Add/remove users instantly without restarting the service |
-| 📡 Multi-Panel | Run multiple panels on a single server simultaneously |
-| 🌐 WebSocket Sync | Real-time WebSocket connection with panel for instant updates |
-| 🔒 Auto TLS | Automatic certificate via Let's Encrypt (HTTP-01 / DNS-01) |
-| ⚡ Per-User Limits | Speed limit, traffic counting, online IP limit per user |
-| 🧭 Custom DNS | Domain-based DNS routing, IP pinning, ad blocking |
-| 🛡️ Routes & Rules | Block ads, trackers, BitTorrent, private networks |
+| 🎮 UDP FullCone NAT | True RFC 3489 FullCone NAT across **all 13 protocols** (native UDP, XUDP, UoT v1/v2, QUIC datagrams) |
+| ⚡ Fixed + Dynamic Speed | Per-user Mbps limit + sliding-window dynamic speed throttling (`traffic_mb` / `periodic_sec` → `limit_mbps`) |
+| 🌐 Global Redis Limits | Local & cluster-wide **TCP connection limit**, **IP limit**, and **Device limit** powered by Redis |
+| 🛡️ Audit & Whitelist | Local & remote block/audit rules (`domain`, `keyword`, `regexp:`, CIDR) + highest-priority **Whitelist** bypass |
 | 🔍 Traffic Sniffing | TLS SNI, HTTP Host, QUIC Initial SNI, BitTorrent DPI & Fake-IP resolution |
-| 🔧 Multi-Instance | Manage multiple instances via `lvnode` CLI |
-| ♻️ Auto-Restart | Automatic restart on token expiry or revocation |
+| 🔒 Auto TLS Hot-Reload | Zero-downtime ACME HTTP-01 / DNS-01 apply & auto-renew across both TCP/TLS and QUIC listeners |
+| 🧭 Anti-Leak DNS | Per-node isolated DNS router, remote DNS over outbound proxy, IP pinning & GeoDNS |
+| ⚖️ Outbound Load Balancer | Remotely configurable `balancer` (`least-ping`, `round-robin`, `failover`, `random`, `ip-hash`) |
+| 📡 Single-Process Multi-Node | Run multiple `nodes:` / `panels:` / `machine_id` inside **one single OS process** |
+| 🔀 Multi-IP & PROXY Proto | `auto_out_ip` (`inbound_ip` → `outbound_ip`), `send_through`, and PROXY Protocol v1/v2 real client IP |
+| 🛡️ AEAD `O(1)` & Tarpit | `O(1)` EIH/MRU multi-user lookup + anti-wrong-password tarpit & auto-ban for SS AEAD, SS2022 & VMess AEAD |
 
 ## Supported Protocols
 
 | Protocol | Description |
 |----------|-------------|
-| **Trojan** | TLS tunnel proxy |
-| **VLESS** | UUID authentication, REALITY (X25519 + X25519MLKEM768 post-quantum), XTLS Vision |
-| **VMess** | VMessAEAD (TCP + UDP) |
-| **Shadowsocks** | AEAD + 2022-blake3, multi-user EIH, TCP + UDP |
-| **SOCKS5** | CONNECT + UDP ASSOCIATE |
-| **HTTP** | HTTP CONNECT proxy |
-| **NaiveProxy** | HTTP CONNECT over TLS |
-| **TUIC** | v5 over QUIC |
-| **Hysteria2** | QUIC + Salamander obfuscation |
-| **AnyTLS** | v1/v2, TLS/REALITY/WS/HTTPUpgrade/XHTTP, dynamic padding, UDP-over-TCP |
-| **Mieru** | v3, TCP/UDP, XChaCha20-Poly1305, Low-Entropy traffic pattern |
+| **Trojan** | TLS / WS / gRPC / HTTPUpgrade / XHTTP + UDP FullCone NAT |
+| **VLESS** | UUID auth, REALITY (X25519 + X25519MLKEM768 PQ), XTLS Vision, XUDP & UoT FullCone NAT |
+| **VMess** | `O(1)` VMessAEAD + anti-probing tarpit + XUDP & UoT FullCone NAT |
+| **Shadowsocks** | Classic AEAD + SIP022 2022-blake3 (`O(1)` EIH, AES-GCM & XChaCha20-Poly1305) + UDP & UoT FullCone NAT |
+| **SOCKS5** | `CONNECT` + `UDP ASSOCIATE` + UoT FullCone NAT |
+| **HTTP** | `HTTP CONNECT` + UoT FullCone NAT |
+| **NaiveProxy** | HTTP/2 & HTTP/1.1 `CONNECT` over TLS with padding + UoT FullCone NAT |
+| **TUIC** | v5 over QUIC (native datagrams + uni-stream + fragmentation FullCone NAT) |
+| **Hysteria2** | QUIC + Salamander obfuscation + UDP fragmentation FullCone NAT |
+| **AnyTLS** | v1/v2, TLS/REALITY/WS/HTTPUpgrade/XHTTP, dynamic padding, UoT v1/v2 FullCone NAT |
+| **Mieru** | v3, TCP/UDP PacketUnderlay, XChaCha20-Poly1305, Low-Entropy traffic + FullCone NAT |
 
 ## Supported Transports
 
 | Transport | Notes |
 |-----------|-------|
-| **TCP** | Raw TCP |
+| **TCP** | Raw TCP (+ optional PROXY Protocol v1/v2) |
 | **WebSocket** | `ws` |
 | **gRPC** | GunService |
 | **HTTPUpgrade** | HTTP/1.1 upgrade |
@@ -107,9 +107,14 @@ Config file: `/etc/levals-node/config.yml`
 | `server_type` | No | Panel type: `levals` (default) / `xboard` / `v2board` |
 | `api_host` | Yes | Panel URL |
 | `api_key` | Yes | Node communication token from panel |
-| `node_id` | Yes | Node ID on panel |
-| `node_type` | Xboard only | Protocol: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` |
+| `node_id` | Yes | Node ID on panel (or use `nodes:` / `machine_id`) |
+| `node_type` | Xboard only | Protocol: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | Yes | Software license key (different from `api_key`) |
+| `udp_fullcone` | No | Enable RFC 3489 UDP FullCone NAT across all protocols (default: `true`) |
+| `auto_out_ip` | No | Multi-IP server: bind outbound IP to the inbound local IP the client connected to |
+| `proxy_protocol` | No | Parse PROXY Protocol v1/v2 header on TCP listeners for real client IP |
+| `limit` | No | Fixed + dynamic speed limits, per-user TCP limit, IP limit & device limit |
+| `redis` | No | Global Redis sync (`addr`, `password`, `db`, `tls`) for IP, TCP & device limits |
 
 ### Example — Levals Panel
 
@@ -289,39 +294,39 @@ A valid license key (`levals_key`) is required. Contact your administrator for l
 | 功能 | 描述 |
 |------|------|
 | 🦀 纯 Rust 引擎 | 原生 Rust 二进制 — 无需 sing-box、xray 或任何外部内核 |
-| 🖥️ 面板支持 | 支持 Xboard / V2Board / Levals 面板 — 自动检测或手动配置 |
-| 🔄 热重载用户 | 即时添加/删除用户，无需重启服务 |
-| 📡 多面板 | 单台服务器同时运行多个面板 |
-| 🌐 WebSocket 同步 | 与面板实时 WebSocket 连接，即时同步更新 |
-| 🔒 自动 TLS | 通过 Let's Encrypt 自动签发证书（HTTP-01 / DNS-01） |
-| ⚡ 用户级限制 | 每用户速率限制、流量统计、在线 IP 限制 |
-| 🧭 自定义 DNS | 基于域名的 DNS 路由、IP 固定、广告拦截 |
-| 🛡️ 路由规则 | 拦截广告、追踪器、BitTorrent、私有网络 |
+| 🎮 全协议 UDP FullCone | 支持 **全部 13 种协议** 的真 RFC 3489 FullCone NAT（原生 UDP、XUDP、UoT v1/v2、QUIC 数据报） |
+| ⚡ 固定 + 动态限速 | 每用户固定 Mbps 限速 + 滑动窗口动态限速（超阈值自动降速，到期自动恢复） |
+| 🌐 全局 Redis 限制 | 支持单机与跨节点 Redis 全局 **用户 TCP 连接数限制**、**在线 IP 限制** 与 **设备数限制** |
+| 🛡️ 审计与白名单规则 | 本地与面板远程下发审计规则（域名、关键词、`regexp:` 正则、CIDR）+ 最高优先级 **白名单** 放行 |
 | 🔍 流量嗅探 | TLS SNI、HTTP Host、QUIC Initial SNI、BitTorrent 深度识别与 Fake-IP 还原 |
-| 🔧 多实例管理 | 通过 `lvnode` CLI 管理多个实例 |
-| ♻️ 自动重启 | Token 过期或撤销时自动重启 |
+| 🔒 自动 TLS 无感热重载 | Let's Encrypt HTTP-01 / DNS-01 自动申请与续期，TCP/TLS 与 QUIC 零中断热重载 |
+| 🧭 防泄漏自定义 DNS | 节点级隔离 DNS 路由、远程通过出站代理解析、IP 固定与广告拦截 |
+| ⚖️ 出站代理负载均衡 | 支持面板远程配置 `balancer`（`least-ping`、`round-robin`、`failover`、`random`、`ip-hash`） |
+| 📡 单实例多节点集成 | 在 **单个进程** 内并发运行多个 `nodes:` / `panels:` / `machine_id` |
+| 🔀 多 IP 自动选源与 PROXY | 支持多 IP 机器自动按入站 IP 选择出站 IP（`auto_out_ip`）及 PROXY Protocol v1/v2 真实源 IP 提取 |
+| 🛡️ AEAD `O(1)` 与防探测 | 单端口多用户 SS AEAD / SS2022 / VMess AEAD `O(1)` 极速查找 + 错密探测自动封禁与随机延迟 Tarpit |
 
 ## 支持协议
 
 | 协议 | 描述 |
 |------|------|
-| **Trojan** | TLS 隧道代理 |
-| **VLESS** | UUID 认证，REALITY（X25519 + X25519MLKEM768 后量子加密），XTLS Vision |
-| **VMess** | VMessAEAD（TCP + UDP） |
-| **Shadowsocks** | AEAD + 2022-blake3，多用户 EIH，TCP + UDP |
-| **SOCKS5** | CONNECT + UDP ASSOCIATE |
-| **HTTP** | HTTP CONNECT 代理 |
-| **NaiveProxy** | 基于 TLS 的 HTTP CONNECT |
-| **TUIC** | v5 over QUIC |
-| **Hysteria2** | QUIC + Salamander 混淆 |
-| **AnyTLS** | v1/v2，TLS/REALITY/WS/HTTPUpgrade/XHTTP，动态填充，UDP-over-TCP |
-| **Mieru** | v3，TCP/UDP，XChaCha20-Poly1305，低熵流量模式 |
+| **Trojan** | TLS / WS / gRPC / HTTPUpgrade / XHTTP + UDP FullCone NAT |
+| **VLESS** | UUID 认证，REALITY（X25519 + X25519MLKEM768 后量子加密），XTLS Vision，XUDP & UoT FullCone NAT |
+| **VMess** | `O(1)` VMessAEAD + 防探测 Tarpit + XUDP & UoT FullCone NAT |
+| **Shadowsocks** | 经典 AEAD + 2022-blake3（`O(1)` 多用户 EIH，AES-GCM & XChaCha20-Poly1305）+ UDP & UoT FullCone NAT |
+| **SOCKS5** | `CONNECT` + `UDP ASSOCIATE` + UoT FullCone NAT |
+| **HTTP** | `HTTP CONNECT` 代理 + UoT FullCone NAT |
+| **NaiveProxy** | 基于 TLS 的 HTTP/2 & HTTP/1.1 `CONNECT`（填充混淆）+ UoT FullCone NAT |
+| **TUIC** | v5 over QUIC（原生数据报 + 单向流 + 分片重组 FullCone NAT） |
+| **Hysteria2** | QUIC + Salamander 混淆 + UDP 分片重组 FullCone NAT |
+| **AnyTLS** | v1/v2，TLS/REALITY/WS/HTTPUpgrade/XHTTP，动态填充，UoT v1/v2 FullCone NAT |
+| **Mieru** | v3，TCP/UDP PacketUnderlay，XChaCha20-Poly1305，低熵流量模式 + FullCone NAT |
 
 ## 支持传输方式
 
 | 传输方式 | 说明 |
 |----------|------|
-| **TCP** | 原始 TCP |
+| **TCP** | 原始 TCP（可选开启 PROXY Protocol v1/v2） |
 | **WebSocket** | `ws` |
 | **gRPC** | GunService |
 | **HTTPUpgrade** | HTTP/1.1 升级 |
@@ -372,9 +377,14 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
 | `server_type` | 否 | 面板类型：`levals`（默认）/ `xboard` / `v2board` |
 | `api_host` | 是 | 面板地址 |
 | `api_key` | 是 | 面板的节点通信 Token |
-| `node_id` | 是 | 面板上的节点 ID |
-| `node_type` | 仅 Xboard | 协议：`shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` |
+| `node_id` | 是 | 面板上的节点 ID（或使用 `nodes:` / `machine_id`） |
+| `node_type` | 仅 Xboard | 协议：`shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | 是 | 软件许可证密钥（与 `api_key` 不同） |
+| `udp_fullcone` | 否 | 开启全协议 RFC 3489 UDP FullCone NAT（默认 `true`） |
+| `auto_out_ip` | 否 | 多 IP 服务器：自动按客户端入站本地 IP 绑定出站源 IP |
+| `proxy_protocol` | 否 | 解析 TCP 监听器的 PROXY Protocol v1/v2 头以获取真实用户 IP |
+| `limit` | 否 | 固定 + 动态限速、每用户 TCP 连接限制、在线 IP 限制与设备限制 |
+| `redis` | 否 | 全局 Redis 集群同步（`addr`、`password`、`db`、`tls`）用于 IP、TCP 与设备限制 |
 
 ### 示例 — Levals 面板
 
@@ -554,39 +564,39 @@ core:
 | Tính năng | Mô tả |
 |-----------|-------|
 | 🦀 Engine Rust thuần | Binary Rust gốc — không cần sing-box, xray hay bất kỳ core ngoài nào |
-| 🖥️ Hỗ trợ Panel | Xboard / V2Board / Levals panel — tự nhận diện hoặc cấu hình tay |
-| 🔄 Hot-Reload User | Thêm/xóa user tức thì, không cần khởi động lại dịch vụ |
-| 📡 Multi-Panel | Chạy nhiều panel trên cùng một máy chủ |
-| 🌐 WebSocket Sync | Kết nối WebSocket thời gian thực với panel để đồng bộ tức thì |
-| 🔒 Auto TLS | Tự động cấp chứng chỉ qua Let's Encrypt (HTTP-01 / DNS-01) |
-| ⚡ Giới hạn theo User | Giới hạn tốc độ, đếm lưu lượng, giới hạn IP online theo từng user |
-| 🧭 DNS tùy chỉnh | Định tuyến DNS theo domain, ghim IP, chặn quảng cáo |
-| 🛡️ Route & Rules | Chặn quảng cáo, tracker, BitTorrent, mạng nội bộ |
+| 🎮 UDP FullCone NAT | Chuẩn RFC 3489 FullCone NAT trên **tất cả 13 giao thức** (UDP gốc, XUDP, UoT v1/v2, QUIC datagram) |
+| ⚡ Giới hạn tốc độ cố định + động | Giới hạn Mbps cố định + cửa sổ trượt giảm tốc động (`traffic_mb` / `periodic_sec` → `limit_mbps`) |
+| 🌐 Giới hạn toàn cầu với Redis | Đồng bộ **giới hạn kết nối TCP**, **giới hạn IP** & **giới hạn thiết bị** xuyên cụm máy chủ qua Redis |
+| 🛡️ Kiểm toán & Danh sách trắng | Quy tắc chặn/kiểm toán từ xa & cục bộ (`domain`, `keyword`, `regexp:`, CIDR) + **Whitelist** ưu tiên cao nhất |
 | 🔍 Sniffing lưu lượng | Tự nhận diện TLS SNI, HTTP Host, QUIC Initial SNI, BitTorrent DPI & giải Fake-IP |
-| 🔧 Quản lý đa instance | Quản lý nhiều instance qua CLI `lvnode` |
-| ♻️ Tự khởi động lại | Tự khởi động lại khi token hết hạn hoặc bị thu hồi |
+| 🔒 Auto TLS nạp nóng | Tự động cấp & gia hạn Let's Encrypt HTTP-01 / DNS-01, nạp nóng không rớt kết nối cho cả TCP/TLS & QUIC |
+| 🧭 DNS chống rò rỉ | Router DNS cách ly từng nút, phân giải DNS qua outbound proxy từ xa, ghim IP & chặn quảng cáo |
+| ⚖️ Cân bằng tải Outbound | Cấu hình từ xa `balancer` (`least-ping`, `round-robin`, `failover`, `random`, `ip-hash`) |
+| 📡 Đa nút trên 1 tiến trình | Tích hợp chạy đồng thời nhiều `nodes:` / `panels:` / `machine_id` trong **một tiến trình duy nhất** |
+| 🔀 Máy nhiều IP & PROXY Proto | Tự động chọn IP đầu ra theo IP đầu vào (`auto_out_ip`) và nhận diện IP thật qua PROXY Protocol v1/v2 |
+| 🛡️ Tối ưu AEAD `O(1)` & Tarpit | Tra cứu `O(1)` EIH/MRU + tự động khóa & giam kết nối (tarpit) chống tấn công dò sai mật khẩu SS/SS2022/VMess |
 
 ## Giao thức hỗ trợ
 
 | Giao thức | Mô tả |
 |-----------|-------|
-| **Trojan** | Proxy đường hầm TLS |
-| **VLESS** | Xác thực UUID, REALITY (X25519 + X25519MLKEM768 hậu lượng tử), XTLS Vision |
-| **VMess** | VMessAEAD (TCP + UDP) |
-| **Shadowsocks** | AEAD + 2022-blake3, đa user EIH, TCP + UDP |
-| **SOCKS5** | CONNECT + UDP ASSOCIATE |
-| **HTTP** | HTTP CONNECT proxy |
-| **NaiveProxy** | HTTP CONNECT qua TLS |
-| **TUIC** | v5 trên QUIC |
-| **Hysteria2** | QUIC + Salamander obfuscation |
-| **AnyTLS** | v1/v2, TLS/REALITY/WS/HTTPUpgrade/XHTTP, dynamic padding, UDP-over-TCP |
-| **Mieru** | v3, TCP/UDP, XChaCha20-Poly1305, Low-Entropy traffic pattern |
+| **Trojan** | TLS / WS / gRPC / HTTPUpgrade / XHTTP + UDP FullCone NAT |
+| **VLESS** | Xác thực UUID, REALITY (X25519 + X25519MLKEM768 hậu lượng tử), XTLS Vision, XUDP & UoT FullCone NAT |
+| **VMess** | `O(1)` VMessAEAD + chống dò mật khẩu Tarpit + XUDP & UoT FullCone NAT |
+| **Shadowsocks** | AEAD cổ điển + SIP022 2022-blake3 (`O(1)` đa user EIH, AES-GCM & XChaCha20-Poly1305) + UDP & UoT FullCone NAT |
+| **SOCKS5** | `CONNECT` + `UDP ASSOCIATE` + UoT FullCone NAT |
+| **HTTP** | `HTTP CONNECT` proxy + UoT FullCone NAT |
+| **NaiveProxy** | HTTP/2 & HTTP/1.1 `CONNECT` qua TLS kèm padding chống DPI + UoT FullCone NAT |
+| **TUIC** | v5 trên QUIC (datagram gốc + luồng đơn hướng + phân mảnh FullCone NAT) |
+| **Hysteria2** | QUIC + Salamander obfuscation + phân mảnh UDP FullCone NAT |
+| **AnyTLS** | v1/v2, TLS/REALITY/WS/HTTPUpgrade/XHTTP, dynamic padding, UoT v1/v2 FullCone NAT |
+| **Mieru** | v3, TCP/UDP PacketUnderlay, XChaCha20-Poly1305, Low-Entropy traffic + FullCone NAT |
 
 ## Transport hỗ trợ
 
 | Transport | Ghi chú |
 |-----------|---------|
-| **TCP** | TCP thô |
+| **TCP** | TCP thô (tùy chọn bật PROXY Protocol v1/v2) |
 | **WebSocket** | `ws` |
 | **gRPC** | GunService |
 | **HTTPUpgrade** | HTTP/1.1 upgrade |
@@ -637,9 +647,14 @@ File cấu hình: `/etc/levals-node/config.yml`
 | `server_type` | Không | Loại panel: `levals` (mặc định) / `xboard` / `v2board` |
 | `api_host` | Có | Địa chỉ panel |
 | `api_key` | Có | Token giao tiếp node từ panel |
-| `node_id` | Có | ID node trên panel |
-| `node_type` | Chỉ Xboard | Giao thức: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` |
+| `node_id` | Có | ID node trên panel (hoặc dùng mảng `nodes:` / `machine_id`) |
+| `node_type` | Chỉ Xboard | Giao thức: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | Có | Giấy phép phần mềm (khác với `api_key`) |
+| `udp_fullcone` | Không | Bật UDP FullCone NAT chuẩn RFC 3489 cho mọi giao thức (mặc định: `true`) |
+| `auto_out_ip` | Không | Máy nhiều IP: tự động chọn IP đầu ra trùng với IP đầu vào mà khách kết nối tới |
+| `proxy_protocol` | Không | Giải mã PROXY Protocol v1/v2 trên cổng TCP để lấy IP thực của người dùng |
+| `limit` | Không | Giới hạn tốc độ cố định + động, giới hạn kết nối TCP, IP & thiết bị mỗi user |
+| `redis` | Không | Đồng bộ giới hạn IP, TCP & thiết bị toàn cầu qua Redis (`addr`, `password`, `db`, `tls`) |
 
 ### Ví dụ — Levals Panel
 

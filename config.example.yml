@@ -1,51 +1,71 @@
-# Cấu hình levals-node — hỗ trợ YAML và JSON (tự nhận theo đuôi file).
-# Chép thành /etc/levals-node/config.yml rồi điền token giấy phép.
-# Cấu trúc chuẩn levals-node (phẳng):
+# Cấu hình levals-node v0.31+ — hỗ trợ YAML và JSON (tự nhận theo đuôi file).
+# Sao chép thành /etc/levals-node/config.yml rồi điền thông tin tương ứng.
 
 server_type: "levals"               # loại panel: levals (mặc định) | xboard | v2board
 api_host: "https://dash.levals.org" # địa chỉ panel
-api_key: "DÁN_TOKEN"                # token node / giấy phép (api key của node)
-node_id: 1                          # ID node trên panel
-# node_type: "vless"               # BẮT BUỘC cho xboard/v2board:
-#                                  # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru
-levals_key: "GIẤY_PHÉP"            # BẮT BUỘC — giấy phép dùng phần mềm levals-node
-#                                  # (KHÁC api_key: api_key là token của panel).
-#                                  # Thiếu trường này node KHÔNG chạy. Node tự kiểm tra
-#                                  # với hệ thống levals lúc khởi động + định kỳ;
-#                                  # sai/hết hạn/bị tắt → node tự dừng.
-#                                  # Giấy phép gắn với URL panel (api_host): admin gán
-#                                  # tay trên web, hoặc tự gắn ở lần chạy đầu tiên —
-#                                  # dùng với panel khác → node tự dừng.
+api_key: "DÁN_TOKEN"                # token giao tiếp của node trên panel
+node_id: 1                          # ID node trên panel (hoặc dùng machine_id / mảng nodes bên dưới)
+# machine_id: 1                     # Chế độ Machine: một máy tự động nhận & chạy mọi node gắn trên panel
+# node_type: "vless"                # BẮT BUỘC cho xboard/v2board:
+#                                   # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive
 
-# ── Cách viết cũ (vẫn hỗ trợ): khối panel: ──
-# panel:
-#   url: "https://dash.levals.org"  # (bí danh cũ: api_host)
-#   token: "DÁN_TOKEN"              # (bí danh cũ: api_key)
-#   node_id: 1
-#   kind: "levals"                  # (bí danh: server_type, type)
-#   node_type: "vless"
+levals_key: "GIẤY_PHÉP"             # BẮT BUỘC — giấy phép phần mềm levals-node (KHÁC api_key).
+#                                   # Node xác thực chữ ký số Ed25519 lúc khởi động & định kỳ.
 
-# Nhiều panel trên cùng một máy (tuỳ chọn): khai báo `panels:` THAY cho cấu hình trên.
-# Mỗi panel chạy độc lập; nhớ đặt cổng node (server_port) khác nhau giữa các panel.
-# panels:
-#   - api_host: "https://dash.levals.org"
-#     api_key: "TOKEN_PANEL_1"
-#     node_id: 1
+# ── Tích hợp nhiều nút trên MỘT phiên bản duy nhất (Single-Process Multi-Node) ──
+# Tất cả các nút chạy đồng thời trong cùng 1 tiến trình levals-node, tự động kế thừa
+# api_host / api_key / server_type cấp gốc nếu lược bỏ, cách ly hoàn toàn Outbound & DNS:
+# nodes:
+#   - node_id: 1
+#   - node_id: 2
+#     node_type: "trojan"
 #   - api_host: "https://panel2.example.com"
 #     api_key: "TOKEN_PANEL_2"
-#     node_id: 2
+#     node_id: 5
+#     auto_out_ip: true
+
+# ── Tùy chọn mạng nâng cao (có thể cấu hình từ xa ngay trên Panel Levals) ──
+udp_fullcone: true                  # Bật UDP FullCone NAT (RFC 3489) cho toàn bộ 13 giao thức
+auto_out_ip: false                  # Máy nhiều IP: tự động chọn IP đầu ra trùng với IP đầu vào của khách
+# send_through: "203.0.113.10"      # Ép địa chỉ IP nguồn đi ra cố định (tuỳ chọn)
+proxy_protocol: false               # Nhận PROXY Protocol v1/v2 từ HAProxy/Nginx Stream để lấy IP thật của khách
+
+# ── Giới hạn tốc độ (cố định + động), kết nối TCP, IP & thiết bị người dùng ──
+limit:
+  speed_limit: 0                    # Tốc độ cố định mặc định (Mbps) khi user trên panel đặt = 0
+  user_tcp_limit: 0                 # Giới hạn kết nối TCP đồng thời mỗi user (0 = theo panel / không giới hạn)
+  user_ip_limit: 0                  # Giới hạn số IP đồng thời mỗi user (0 = theo device_limit trên panel)
+  user_device_limit: 0              # Giới hạn thiết bị toàn cầu mỗi user (0 = theo device_limit trên panel)
+  dynamic_speed:                    # Giới hạn tốc độ động theo cửa sổ trượt:
+    enable: false
+    traffic_mb: 500                 # Vượt 500 MB trong chu kỳ periodic_sec...
+    periodic_sec: 60                # ...60 giây...
+    limit_mbps: 20                  # ...thì hạ tốc độ xuống 20 Mbps...
+    expire_sec: 300                 # ...trong 300 giây trước khi khôi phục tốc độ gốc.
+
+# ── Redis toàn cục (đồng bộ giới hạn IP, kết nối TCP & thiết bị xuyên nhiều máy chủ) ──
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"            # Hỗ trợ "host:port", "redis://:pass@host:6379/0", "rediss://..." (TLS)
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
 
 core:
-  engine: native                    # engine thuần Rust (duy nhất) — không cần lõi ngoài
+  engine: native                    # Engine thuần Rust duy nhất — không cần lõi ngoài
 
 config_dir: "/etc/levals-node"
 
 log:
-  level: "info"                     # trace|debug|info|warn|error
+  level: "info"                     # trace | debug | info | warn | error
+  # access: "/etc/levals-node/access.log"  # đặt "none" nếu muốn tắt ghi access log
 
-# Nhận diện lưu lượng (Sniffing — mặc định BẬT): tự trích xuất tên miền từ TLS SNI,
-# HTTP Host, QUIC Initial SNI và nhận diện BitTorrent (TCP/UDP/DHT/Tracker) kể cả khi
-# client nối bằng IP thuần hoặc Fake-IP (198.18.0.0/15).
+# ── Nhận diện lưu lượng (Sniffing — mặc định BẬT) ──
+# Tự trích xuất tên miền từ TLS SNI, HTTP Host, QUIC Initial SNI và nhận diện BitTorrent
+# (TCP/UDP/DHT/Tracker) kể cả khi client nối bằng IP thuần hoặc Fake-IP (198.18.0.0/15).
 sniffing:
   enabled: true
   route_only: false                 # true = chỉ dùng domain sniff để chặn/định tuyến, giữ nguyên IP đích
@@ -53,15 +73,8 @@ sniffing:
   domains_excluded:
     - "courier.push.apple.com"
 
-# DNS tùy chỉnh (tuỳ chọn): đặt file dns.yml cạnh config.yml (xem dns.example.yml)
-# để phân giải domain qua DNS riêng, ghim IP tĩnh, hoặc chặn. Không có = DNS hệ thống.
-
-# DNS-01 (tuỳ chọn): nên đặt NGAY TRONG PANEL (ô "Nhà cung cấp DNS" + biến KEY=VALUE),
-# node tự nhận. Nhà cung cấp hỗ trợ:
-#   cloudflare : CF_DNS_API_TOKEN
-#   dnspod     : DP_Id  +  DP_Key
-#   aliyun     : Ali_Key  +  Ali_Secret
-#   gcore      : GCORE_API_TOKEN
+# ── Chứng chỉ TLS tự động (ACME HTTP-01 / DNS-01 + nạp nóng không gián đoạn kết nối) ──
+# Khuyên dùng cấu hình trực tiếp trên giao diện Panel (hỗ trợ Cloudflare, DNSPod, Aliyun, Gcore).
 # acme:
 #   dns_provider: "cloudflare"
 #   cf_token: "CLOUDFLARE_API_TOKEN"
