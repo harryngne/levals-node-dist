@@ -63,7 +63,7 @@ log:
   level: "info"                     # trace | debug | info | warn | error
   # access: "/etc/levals-node/access.log"  # đặt "none" nếu muốn tắt ghi access log
 
-# ── Nhận diện lưu lượng (Sniffing — mặc định BẬT) ──
+# ── Nhận diện lưu lượng (Sniffing — mặc định BẬT, có thể bật/tắt trực tiếp trên giao diện Web Panel) ──
 # Tự trích xuất tên miền từ TLS SNI, HTTP Host, QUIC Initial SNI và nhận diện BitTorrent
 # (TCP/UDP/DHT/Tracker) kể cả khi client nối bằng IP thuần hoặc Fake-IP (198.18.0.0/15).
 sniffing:
