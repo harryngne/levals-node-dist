@@ -916,14 +916,19 @@ set_yaml_kv(){
   local file="$1" raw_k="$2" raw_v="$3"
   local k="$raw_k"
   case "$raw_k" in
-    PANEL_URL|url)         k="api_host" ;;
-    TOKEN|token)           k="api_key" ;;
-    NODE_ID)               k="node_id" ;;
-    LEVALS_KEY)            k="levals_key" ;;
-    PANEL_KIND|kind|type)  k="server_type" ;;
-    NODE_TYPE)             k="node_type" ;;
-    LOG_LEVEL|log_level)   k="log.level" ;;
-    LOG_ACCESS|log_access) k="log.access" ;;
+    API_HOST|PANEL_URL|url)         k="api_host" ;;
+    API_KEY|TOKEN|token)            k="api_key" ;;
+    NODE_ID)                        k="node_id" ;;
+    MACHINE_ID)                     k="machine_id" ;;
+    LEVALS_KEY|LICENSE)             k="levals_key" ;;
+    SERVER_TYPE|PANEL_KIND|kind|type) k="server_type" ;;
+    NODE_TYPE)                      k="node_type" ;;
+    UDP_FULLCONE)                   k="udp_fullcone" ;;
+    AUTO_OUT_IP)                    k="auto_out_ip" ;;
+    PROXY_PROTOCOL)                 k="proxy_protocol" ;;
+    SEND_THROUGH)                   k="send_through" ;;
+    LOG_LEVEL|log_level)            k="log.level" ;;
+    LOG_ACCESS|log_access)          k="log.access" ;;
   esac
   local fv
   fv="$(fmt_yaml_val "$raw_v")"
@@ -1043,12 +1048,51 @@ server_type: "${def_type}"
 api_host: "${def_host}"
 api_key: "${def_key}"
 node_id: 1
+# node_type: "vless"
 levals_key: "${def_lkey}"
+
+udp_fullcone: true
+auto_out_ip: false
+# send_through: "203.0.113.10"
+proxy_protocol: false
+
+limit:
+  speed_limit: 0
+  user_tcp_limit: 0
+  user_ip_limit: 0
+  user_device_limit: 0
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
+
 core:
   engine: native
+
 config_dir: "$INST_DIR"
+
 log:
   level: "info"
+  # access: "$INST_DIR/access.log"
 YML
 
   local kv k v

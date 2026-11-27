@@ -6,11 +6,14 @@
 #
 # Mode 2 — Auto-configure in one command (flags):
 #   bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
-#     --panel-url https://your-panel.com --token YOUR_TOKEN --node-id 1 --license YOUR_KEY
+#     --server-type levals --api-host https://your-panel.com --api-key YOUR_API_KEY \
+#     --node-id 1 --node-type vless --levals-key YOUR_LICENSE_KEY
 #
 # Mode 3 — Environment variables:
 #   curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-#     PANEL_URL=https://your-panel.com TOKEN=xxxx NODE_ID=1 LEVALS_KEY=xxxx bash
+#     SERVER_TYPE=levals API_HOST=https://your-panel.com API_KEY=YOUR_API_KEY \
+#     NODE_ID=1 NODE_TYPE=vless LEVALS_KEY=YOUR_LICENSE_KEY bash
+
 
 # ── i18n detection ──
 LN="${LVNODE_LANG:-}"
@@ -201,19 +204,32 @@ _im(){
   esac
 }
 
-# ── Parse --flags (override env) ──
+# ── Parse --flags (override env; supports primary names + legacy aliases) ──
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --panel-url)   PANEL_URL="$2";   shift 2 ;;
-    --token)       TOKEN="$2";       shift 2 ;;
-    --node-id)     NODE_ID="$2";     shift 2 ;;
-    --license)     LEVALS_KEY="$2";  shift 2 ;;
-    --panel-kind)  PANEL_KIND="$2";  shift 2 ;;
-    --node-type)   NODE_TYPE="$2";   shift 2 ;;
-    --instance)    INSTANCE="$2";    shift 2 ;;
-    --lang)        LN="$2";          shift 2 ;;
-    --lang=*)      LN="${1#--lang=}"; shift  ;;
-    --staging)     ACME_STAGING=1;   shift   ;;
+    --server-type|--panel-kind) SERVER_TYPE="$2"; shift 2 ;;
+    --server-type=*)            SERVER_TYPE="${1#*=}"; shift ;;
+    --panel-kind=*)             SERVER_TYPE="${1#*=}"; shift ;;
+    --api-host|--panel-url)     API_HOST="$2"; shift 2 ;;
+    --api-host=*)               API_HOST="${1#*=}"; shift ;;
+    --panel-url=*)              API_HOST="${1#*=}"; shift ;;
+    --api-key|--token)          API_KEY="$2"; shift 2 ;;
+    --api-key=*)                API_KEY="${1#*=}"; shift ;;
+    --token=*)                  API_KEY="${1#*=}"; shift ;;
+    --node-id)                  NODE_ID="$2"; shift 2 ;;
+    --node-id=*)                NODE_ID="${1#*=}"; shift ;;
+    --machine-id)               MACHINE_ID="$2"; shift 2 ;;
+    --machine-id=*)             MACHINE_ID="${1#*=}"; shift ;;
+    --node-type)                NODE_TYPE="$2"; shift 2 ;;
+    --node-type=*)              NODE_TYPE="${1#*=}"; shift ;;
+    --levals-key|--license)     LEVALS_KEY="$2"; shift 2 ;;
+    --levals-key=*)             LEVALS_KEY="${1#*=}"; shift ;;
+    --license=*)                LEVALS_KEY="${1#*=}"; shift ;;
+    --instance)                 INSTANCE="$2"; shift 2 ;;
+    --instance=*)               INSTANCE="${1#*=}"; shift ;;
+    --lang)                     LN="$2"; shift 2 ;;
+    --lang=*)                   LN="${1#--lang=}"; shift ;;
+    --staging)                  ACME_STAGING=1; shift ;;
     --help|-h)
       echo "Usage: bash install.sh [OPTIONS]"
       echo ""
@@ -221,20 +237,26 @@ while [[ $# -gt 0 ]]; do
       echo "or pass options below for zero-touch provisioning:"
       echo ""
       echo "Options:"
-      echo "  --panel-url URL    Panel URL (e.g. https://dash.levals.org)"
-      echo "  --token TOKEN      Node API token from panel"
-      echo "  --node-id ID       Node ID on panel"
-      echo "  --license KEY      Software license key (levals_key)"
-      echo "  --panel-kind KIND  Panel type: levals|xboard|v2board (default: levals)"
-      echo "  --node-type TYPE   Protocol: shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
-      echo "  --instance NAME    Instance name (multi-instance)"
-      echo "  --lang LANG        CLI output language: en|zh|vi"
-      echo "  --staging          Use Let's Encrypt staging"
-      echo "  -h, --help         Show this help"
+      echo "  --server-type TYPE  Panel type: levals|xboard|v2board (default: levals)"
+      echo "  --api-host URL      Panel URL (e.g. https://dash.levals.org)"
+      echo "  --api-key KEY       Node API communication key from panel"
+      echo "  --node-id ID        Node ID on panel (or use --machine-id)"
+      echo "  --machine-id ID     Machine ID on Levals panel (multi-node machine mode)"
+      echo "  --node-type TYPE    Protocol: shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
+      echo "  --levals-key KEY    Software license key (levals_key; alias: --license)"
+      echo "  --instance NAME     Instance name (multi-instance)"
+      echo "  --lang LANG         CLI output language: en|zh|vi"
+      echo "  --staging           Use Let's Encrypt staging"
+      echo "  -h, --help          Show this help"
       exit 0 ;;
     *) echo "Unknown option: $1 (use --help)"; exit 1 ;;
   esac
 done
+
+# Backward-compatible environment variable aliases
+SERVER_TYPE="${SERVER_TYPE:-${PANEL_KIND:-}}"
+API_HOST="${API_HOST:-${PANEL_URL:-}}"
+API_KEY="${API_KEY:-${TOKEN:-}}"
 
 set -eo pipefail
 
@@ -287,16 +309,22 @@ GEO="$LIB/geo"
 
 # Auto-detect multi-node on the same VPS when --instance / INSTANCE is not explicitly passed
 FORCE_WRITE_CFG=0
-if [ -z "${INSTANCE:-}" ] && [ -n "${PANEL_URL:-}" ] && [ -n "${TOKEN:-}" ] && [ -n "${NODE_ID:-}" ] && [ -n "${LEVALS_KEY:-}" ]; then
-  norm_url="${PANEL_URL%/}"
+if [ -z "${INSTANCE:-}" ] && [ -n "${API_HOST:-}" ] && [ -n "${API_KEY:-}" ] && { [ -n "${NODE_ID:-}" ] || [ -n "${MACHINE_ID:-}" ]; } && [ -n "${LEVALS_KEY:-}" ]; then
+  norm_url="${API_HOST%/}"
   matched_dir=""
   for d in /etc/levals-node /etc/levals-node-*; do
     [ -f "$d/config.yml" ] || continue
     eh="$(yaml_val "$d/config.yml" api_host)"; [ -z "$eh" ] && eh="$(yaml_val "$d/config.yml" url)"
     eh="${eh%/}"
     en="$(yaml_val "$d/config.yml" node_id)"
+    em="$(yaml_val "$d/config.yml" machine_id)"
     et="$(yaml_val "$d/config.yml" node_type)"
-    if [ "$eh" = "$norm_url" ] && [ "$en" = "$NODE_ID" ] && [ "${et:-}" = "${NODE_TYPE:-}" ]; then
+    if [ -n "${MACHINE_ID:-}" ]; then
+      if [ "$eh" = "$norm_url" ] && [ "$em" = "$MACHINE_ID" ]; then
+        matched_dir="$d"
+        break
+      fi
+    elif [ "$eh" = "$norm_url" ] && [ "$en" = "$NODE_ID" ] && [ "${et:-}" = "${NODE_TYPE:-}" ]; then
       matched_dir="$d"
       break
     fi
@@ -312,16 +340,20 @@ if [ -z "${INSTANCE:-}" ] && [ -n "${PANEL_URL:-}" ] && [ -n "${TOKEN:-}" ] && [
   elif [ -f "/etc/levals-node/config.yml" ]; then
     base_host="$(yaml_val /etc/levals-node/config.yml api_host)"
     base_key="$(yaml_val /etc/levals-node/config.yml api_key)"
-    if [ -n "$base_host" ] && [ "$base_host" != "https://your-panel.example.com" ] && [ "$base_key" != "YOUR_PANEL_COMMUNICATION_KEY" ]; then
-      cand="node${NODE_ID}"
-      [ -n "${NODE_TYPE:-}" ] && [ -e "/etc/levals-node-${cand}" ] && cand="node${NODE_ID}-${NODE_TYPE}"
+    if [ -n "$base_host" ] && [ "$base_host" != "https://your-panel.example.com" ] && [ "$base_key" != "YOUR_API_KEY" ] && [ "$base_key" != "YOUR_PANEL_COMMUNICATION_KEY" ]; then
+      if [ -n "${MACHINE_ID:-}" ]; then
+        cand="machine${MACHINE_ID}"
+      else
+        cand="node${NODE_ID}"
+        [ -n "${NODE_TYPE:-}" ] && [ -e "/etc/levals-node-${cand}" ] && cand="node${NODE_ID}-${NODE_TYPE}"
+      fi
       idx=2
       while [ -e "/etc/levals-node-${cand}" ]; do
-        cand="node${NODE_ID}-${idx}"
+        cand="node${NODE_ID:-m${MACHINE_ID}}-${idx}"
         idx=$((idx + 1))
       done
       INSTANCE="$cand"
-      ok "$(_im auto_inst): levals-node-${INSTANCE} (NODE_ID=${NODE_ID})"
+      ok "$(_im auto_inst): levals-node-${INSTANCE}"
     else
       FORCE_WRITE_CFG=1
     fi
@@ -424,38 +456,69 @@ ok "levals-node $(/usr/local/bin/levals-node --version 2>/dev/null | awk '{print
 TEMPLATE_MODE=0
 info "$(_im cfg_sec)"
 if [ ! -f "$CFG/config.yml" ] || [ "$FORCE_WRITE_CFG" = "1" ]; then
-  if [ -n "${PANEL_URL:-}" ] && [ -n "${TOKEN:-}" ] && [ -n "${NODE_ID:-}" ] && [ -n "${LEVALS_KEY:-}" ]; then
-    KIND="${PANEL_KIND:-levals}"
-    NTLINE=""
-    [ -n "${NODE_TYPE:-}" ] && NTLINE="
-node_type: \"$NODE_TYPE\""
+  if [ -n "${API_HOST:-}" ] && [ -n "${API_KEY:-}" ] && { [ -n "${NODE_ID:-}" ] || [ -n "${MACHINE_ID:-}" ]; } && [ -n "${LEVALS_KEY:-}" ]; then
+    KIND="${SERVER_TYPE:-levals}"
+    if [ -n "${MACHINE_ID:-}" ]; then
+      ID_LINE="machine_id: $MACHINE_ID"
+      NT_LINE="# node_type: \"vless\"                        # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
+    else
+      ID_LINE="node_id: $NODE_ID
+# machine_id: 1"
+      if [ -n "${NODE_TYPE:-}" ]; then
+        NT_LINE="node_type: \"$NODE_TYPE\"                        # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
+      elif [ "$KIND" != "levals" ]; then
+        NT_LINE="node_type: \"vless\"                          # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
+      else
+        NT_LINE="# node_type: \"vless\"                        # Required for xboard/v2board: shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive"
+      fi
+    fi
     cat > "$CFG/config.yml" <<YML
-server_type: "$KIND"
-api_host: "$PANEL_URL"
-api_key: "$TOKEN"
-node_id: $NODE_ID$NTLINE
+server_type: "$KIND"                        # levals | xboard | v2board
+api_host: "$API_HOST"
+api_key: "$API_KEY"
+$ID_LINE
+$NT_LINE
 levals_key: "$LEVALS_KEY"
-core:
-  engine: native
-config_dir: "$CFG"
-log:
-  level: "info"
-YML
-    ok "$(_im cfg_created) $CFG/config.yml"
-  else
-    TEMPLATE_MODE=1
-    KIND="${PANEL_KIND:-xboard}"
-    cat > "$CFG/config.yml" <<YML
-# levals-node configuration (YAML / JSON)
-# Edit with: lvnode config -e   (or: nano $CFG/config.yml)
-# Apply with: lvnode restart
 
-server_type: "${KIND}"                      # levals | xboard | v2board
-api_host: "${PANEL_URL:-https://your-panel.example.com}"
-api_key: "${TOKEN:-YOUR_PANEL_COMMUNICATION_KEY}"
-node_id: ${NODE_ID:-1}
-node_type: "${NODE_TYPE:-vless}"            # Required for xboard/v2board: vless|vmess|trojan|shadowsocks|hysteria|tuic|anytls|mieru|naive
-levals_key: "${LEVALS_KEY:-YOUR_LEVALS_LICENSE_KEY}"
+# Single-process multi-node integration (optional):
+# nodes:
+#   - node_id: 1
+#   - node_id: 2
+#     node_type: "trojan"
+
+udp_fullcone: true                          # RFC 3489 UDP FullCone NAT across all protocols
+auto_out_ip: false                          # Multi-IP: bind outbound IP to client's inbound local IP
+# send_through: "203.0.113.10"              # Force fixed outbound source IP (optional)
+proxy_protocol: false                       # Parse PROXY Protocol v1/v2 for real client IP
+
+limit:
+  speed_limit: 0                            # Default fixed speed limit in Mbps (0 = panel default)
+  user_tcp_limit: 0                         # Max concurrent TCP connections per user (0 = panel default)
+  user_ip_limit: 0                          # Max concurrent IPs per user (0 = panel default)
+  user_device_limit: 0                      # Max global devices per user (0 = panel default)
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"                    # host:port | redis://:pass@host:6379/0 | rediss://...
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true                             # Also remotely controllable from Levals Web Panel
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
 
 core:
   engine: native
@@ -464,6 +527,86 @@ config_dir: "$CFG"
 
 log:
   level: "info"                             # trace | debug | info | warn | error
+  # access: "$CFG/access.log"
+
+# acme:
+#   dns_provider: "cloudflare"              # cloudflare | dnspod | alidns | gcore
+#   cf_token: "CLOUDFLARE_API_TOKEN"
+YML
+    ok "$(_im cfg_created) $CFG/config.yml"
+  else
+    TEMPLATE_MODE=1
+    KIND="${SERVER_TYPE:-xboard}"
+    if [ -n "${MACHINE_ID:-}" ]; then
+      ID_TPL="machine_id: ${MACHINE_ID}"
+    else
+      ID_TPL="node_id: ${NODE_ID:-1}
+# machine_id: 1"
+    fi
+    cat > "$CFG/config.yml" <<YML
+# levals-node configuration (YAML / JSON)
+# Edit with: lvnode config -e   (or: nano $CFG/config.yml)
+# Apply with: lvnode restart
+
+server_type: "${KIND}"                      # levals | xboard | v2board
+api_host: "${API_HOST:-https://your-panel.example.com}"
+api_key: "${API_KEY:-YOUR_API_KEY}"
+${ID_TPL}
+node_type: "${NODE_TYPE:-vless}"            # Required for xboard/v2board: vless|vmess|trojan|shadowsocks|hysteria|tuic|anytls|mieru|naive
+levals_key: "${LEVALS_KEY:-YOUR_LEVALS_LICENSE_KEY}"
+
+# Single-process multi-node integration (optional):
+# nodes:
+#   - node_id: 1
+#   - node_id: 2
+#     node_type: "trojan"
+
+udp_fullcone: true                          # RFC 3489 UDP FullCone NAT across all protocols
+auto_out_ip: false                          # Multi-IP: bind outbound IP to client's inbound local IP
+# send_through: "203.0.113.10"              # Force fixed outbound source IP (optional)
+proxy_protocol: false                       # Parse PROXY Protocol v1/v2 for real client IP
+
+limit:
+  speed_limit: 0                            # Default fixed speed limit in Mbps (0 = panel default)
+  user_tcp_limit: 0                         # Max concurrent TCP connections per user (0 = panel default)
+  user_ip_limit: 0                          # Max concurrent IPs per user (0 = panel default)
+  user_device_limit: 0                      # Max global devices per user (0 = panel default)
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"                    # host:port | redis://:pass@host:6379/0 | rediss://...
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true                             # Also remotely controllable from Levals Web Panel
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
+
+core:
+  engine: native
+
+config_dir: "$CFG"
+
+log:
+  level: "info"                             # trace | debug | info | warn | error
+  # access: "$CFG/access.log"
+
+# acme:
+#   dns_provider: "cloudflare"              # cloudflare | dnspod | alidns | gcore
+#   cf_token: "CLOUDFLARE_API_TOKEN"
 YML
     ok "$(_im cfg_tpl_created): $CFG/config.yml"
   fi
@@ -496,6 +639,11 @@ settings:
   block_quic: true
   block_bt: true
   block_private: true
+  sniffing: true
+
+whitelist:
+  - type: domain
+    values: []
 
 block:
   - type: domain
@@ -530,6 +678,8 @@ block:
       - announce
       - peer-exchange
       - seed-peer
+  - type: regex
+    values: []
   - type: ip
     values: []
 ROUTES

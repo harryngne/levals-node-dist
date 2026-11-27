@@ -77,23 +77,30 @@ lvnode config -e     # or: nano /etc/levals-node/config.yml
 lvnode restart
 ```
 
-**Option 2 — Zero-touch one-line install:**
+**Option 2 — Zero-touch one-line install (CLI flags):**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
-  --panel-url https://your-panel.com \
-  --token YOUR_NODE_TOKEN \
+  --server-type levals \
+  --api-host https://your-panel.com \
+  --api-key YOUR_API_KEY \
   --node-id 1 \
-  --license YOUR_LICENSE_KEY
+  --node-type vless \
+  --levals-key YOUR_LICENSE_KEY
 ```
 
-*(For Xboard / V2Board, append `--panel-kind xboard --node-type vless`)*
+*(For Xboard / V2Board, set `--server-type xboard` or `--server-type v2board` and your protocol in `--node-type`)*
 
 **Option 3 — Environment variables:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-  PANEL_URL=https://your-panel.com TOKEN=YOUR_TOKEN NODE_ID=1 LEVALS_KEY=YOUR_LICENSE bash
+  SERVER_TYPE=levals \
+  API_HOST=https://your-panel.com \
+  API_KEY=YOUR_API_KEY \
+  NODE_ID=1 \
+  NODE_TYPE=vless \
+  LEVALS_KEY=YOUR_LICENSE_KEY bash
 ```
 
 ## Configuration
@@ -106,53 +113,90 @@ Config file: `/etc/levals-node/config.yml`
 |-------|----------|-------------|
 | `server_type` | No | Panel type: `levals` (default) / `xboard` / `v2board` |
 | `api_host` | Yes | Panel URL |
-| `api_key` | Yes | Node communication token from panel |
-| `node_id` | Yes | Node ID on panel (or use `nodes:` / `machine_id`) |
-| `node_type` | Xboard only | Protocol: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
+| `api_key` | Yes | Node API communication key from panel |
+| `node_id` | Yes | Node ID on panel (or use `machine_id` / `nodes:`) |
+| `machine_id` | No | Machine ID on Levals panel (auto-runs all nodes assigned to this machine) |
+| `node_type` | Xboard/V2Board | Protocol: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | Yes | Software license key (different from `api_key`) |
+| `nodes` | No | Run multiple nodes/panels concurrently inside one single OS process |
 | `udp_fullcone` | No | Enable RFC 3489 UDP FullCone NAT across all protocols (default: `true`) |
 | `auto_out_ip` | No | Multi-IP server: bind outbound IP to the inbound local IP the client connected to |
+| `send_through` | No | Force a fixed outbound source IP address |
 | `proxy_protocol` | No | Parse PROXY Protocol v1/v2 header on TCP listeners for real client IP |
-| `limit` | No | Fixed + dynamic speed limits, per-user TCP limit, IP limit & device limit |
-| `redis` | No | Global Redis sync (`addr`, `password`, `db`, `tls`) for IP, TCP & device limits |
+| `limit` | No | Fixed + dynamic speed limits (`dynamic_speed`), per-user TCP, IP & device limits |
+| `redis` | No | Global Redis sync (`enable`, `addr`, `username`, `password`, `db`, `tls`, `key_prefix`, `expiry_sec`) |
+| `sniffing` | No | Traffic sniffing (`enabled`, `route_only`, `dest_override`, `domains_excluded`) — also toggleable on Web Panel |
+| `core` | No | Native Rust engine (`engine: native`) |
+| `config_dir` | No | State & certificate cache directory (default: `/etc/levals-node`) |
+| `log` | No | Log `level` (`trace`\|`debug`\|`info`\|`warn`\|`error`) and optional `access` log path |
+| `acme` | No | Optional local DNS-01 ACME credentials (`dns_provider`, `cf_token`) |
 
-### Example — Levals Panel
+### Full `config.yml` Example — Levals Panel
 
 ```yaml
 server_type: "levals"
 api_host: "https://dash.levals.org"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
+# machine_id: 1
+# node_type: "vless"
 levals_key: "YOUR_LICENSE_KEY"
+
+udp_fullcone: true
+auto_out_ip: false
+# send_through: "203.0.113.10"
+proxy_protocol: false
+
+limit:
+  speed_limit: 0
+  user_tcp_limit: 0
+  user_ip_limit: 0
+  user_device_limit: 0
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
 
 core:
   engine: native
+
+config_dir: "/etc/levals-node"
+
+log:
+  level: "info"
+  # access: "/etc/levals-node/access.log"
 ```
 
-### Example — Xboard Panel
+### Example — Xboard / V2Board Panel
 
 ```yaml
-server_type: "xboard"
+server_type: "xboard"                       # or "v2board"
 api_host: "https://xboard.example.com"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
-node_type: "vless"
+node_type: "vless"                          # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive
 levals_key: "YOUR_LICENSE_KEY"
 
-core:
-  engine: native
-```
-
-### Example — V2Board Panel
-
-```yaml
-server_type: "v2board"
-api_host: "https://v2board.example.com"
-api_key: "YOUR_NODE_TOKEN"
-node_id: 1
-node_type: "trojan"
-levals_key: "YOUR_LICENSE_KEY"
-
+udp_fullcone: true
 core:
   engine: native
 ```
@@ -219,15 +263,21 @@ rules:
     block: true                # Block resolution entirely
 ```
 
-## Routes & Rules (Optional)
+## Routes, Whitelist & Audit Rules (Optional)
 
-Place `routes.yml` next to `config.yml` in `/etc/levals-node/`:
+Place `routes.yml` next to `config.yml` in `/etc/levals-node/` (or configure remotely on the Levals Panel):
 
 ```yaml
 settings:
   block_quic: true             # Block QUIC/HTTP3 (UDP 443) — force TCP
   block_bt: true               # Block BitTorrent traffic
   block_private: true          # Block access to private IP ranges
+  sniffing: true               # Inspect TLS SNI / HTTP Host / QUIC SNI / BitTorrent DPI
+
+whitelist:
+  - type: domain
+    values:
+      - dl.google.com
 
 block:
   - type: domain
@@ -238,29 +288,38 @@ block:
     values:
       - torrent
       - tracker
+  - type: regex
+    values:
+      - '(^|\.)(xmrig|minexmr|nanopool)\.'
   - type: ip
     values: []
 ```
 
-## Multi-Panel on Single Server
+## Single-Process Multi-Node / Multi-Panel
 
-Use `panels:` instead of single panel fields in your config:
+Use `nodes:` (inherits top-level `server_type` / `api_host` / `api_key`, or overrides per entry) to run multiple nodes inside one single `levals-node` process:
 
 ```yaml
-panels:
-  - api_host: "https://panel1.example.com"
-    api_key: "TOKEN_PANEL_1"
-    node_id: 1
-  - api_host: "https://panel2.example.com"
-    api_key: "TOKEN_PANEL_2"
-    node_id: 2
-
+server_type: "levals"
+api_host: "https://panel1.example.com"
+api_key: "API_KEY_PANEL_1"
 levals_key: "YOUR_LICENSE_KEY"
+
+nodes:
+  - node_id: 1
+  - node_id: 2
+    node_type: "trojan"
+  - server_type: "xboard"
+    api_host: "https://panel2.example.com"
+    api_key: "API_KEY_PANEL_2"
+    node_id: 5
+    node_type: "vless"
+
 core:
   engine: native
 ```
 
-> **Note:** Ensure each panel's node uses a different `server_port` to avoid port conflicts.
+> **Note:** Ensure each node uses a different `server_port` to avoid port conflicts.
 
 ## Supported Panels
 
@@ -351,19 +410,26 @@ lvnode restart
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
-  --panel-url https://your-panel.com \
-  --token YOUR_NODE_TOKEN \
+  --server-type levals \
+  --api-host https://your-panel.com \
+  --api-key YOUR_API_KEY \
   --node-id 1 \
-  --license YOUR_LICENSE_KEY
+  --node-type vless \
+  --levals-key YOUR_LICENSE_KEY
 ```
 
-*（对接 Xboard / V2Board 请追加：`--panel-kind xboard --node-type vless`）*
+*（对接 Xboard / V2Board 请将 `--server-type` 设为 `xboard` 或 `v2board`，并在 `--node-type` 中指定协议）*
 
 **方式三：使用环境变量：**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-  PANEL_URL=https://your-panel.com TOKEN=YOUR_TOKEN NODE_ID=1 LEVALS_KEY=YOUR_LICENSE bash
+  SERVER_TYPE=levals \
+  API_HOST=https://your-panel.com \
+  API_KEY=YOUR_API_KEY \
+  NODE_ID=1 \
+  NODE_TYPE=vless \
+  LEVALS_KEY=YOUR_LICENSE_KEY bash
 ```
 
 ## 配置文件
@@ -376,53 +442,90 @@ curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/ins
 |------|------|------|
 | `server_type` | 否 | 面板类型：`levals`（默认）/ `xboard` / `v2board` |
 | `api_host` | 是 | 面板地址 |
-| `api_key` | 是 | 面板的节点通信 Token |
-| `node_id` | 是 | 面板上的节点 ID（或使用 `nodes:` / `machine_id`） |
-| `node_type` | 仅 Xboard | 协议：`shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
+| `api_key` | 是 | 面板的节点 API 通信密钥 |
+| `node_id` | 是 | 面板上的节点 ID（或使用 `machine_id` / `nodes:`） |
+| `machine_id` | 否 | Levals 面板机器 ID（自动接管并运行绑定到该机器的所有节点） |
+| `node_type` | Xboard/V2Board | 协议：`shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | 是 | 软件许可证密钥（与 `api_key` 不同） |
+| `nodes` | 否 | 单进程内并发集成运行多个节点或多个面板 |
 | `udp_fullcone` | 否 | 开启全协议 RFC 3489 UDP FullCone NAT（默认 `true`） |
 | `auto_out_ip` | 否 | 多 IP 服务器：自动按客户端入站本地 IP 绑定出站源 IP |
+| `send_through` | 否 | 强制固定出站源 IP 地址 |
 | `proxy_protocol` | 否 | 解析 TCP 监听器的 PROXY Protocol v1/v2 头以获取真实用户 IP |
-| `limit` | 否 | 固定 + 动态限速、每用户 TCP 连接限制、在线 IP 限制与设备限制 |
-| `redis` | 否 | 全局 Redis 集群同步（`addr`、`password`、`db`、`tls`）用于 IP、TCP 与设备限制 |
+| `limit` | 否 | 固定 + 动态限速（`dynamic_speed`）、每用户 TCP 连接限制、IP 限制与设备限制 |
+| `redis` | 否 | 全局 Redis 集群同步（`enable`、`addr`、`username`、`password`、`db`、`tls`、`key_prefix`、`expiry_sec`） |
+| `sniffing` | 否 | 流量嗅探配置（`enabled`、`route_only`、`dest_override`、`domains_excluded`，支持面板远程开关） |
+| `core` | 否 | 纯 Rust 原生引擎（`engine: native`） |
+| `config_dir` | 否 | 状态与证书缓存目录（默认 `/etc/levals-node`） |
+| `log` | 否 | 日志级别 `level`（`trace`\|`debug`\|`info`\|`warn`\|`error`）与可选 `access` 访问日志路径 |
+| `acme` | 否 | 本地 DNS-01 ACME 凭据（`dns_provider`、`cf_token`） |
 
-### 示例 — Levals 面板
+### 完整 `config.yml` 示例 — Levals 面板
 
 ```yaml
 server_type: "levals"
 api_host: "https://dash.levals.org"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
+# machine_id: 1
+# node_type: "vless"
 levals_key: "YOUR_LICENSE_KEY"
+
+udp_fullcone: true
+auto_out_ip: false
+# send_through: "203.0.113.10"
+proxy_protocol: false
+
+limit:
+  speed_limit: 0
+  user_tcp_limit: 0
+  user_ip_limit: 0
+  user_device_limit: 0
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
 
 core:
   engine: native
+
+config_dir: "/etc/levals-node"
+
+log:
+  level: "info"
+  # access: "/etc/levals-node/access.log"
 ```
 
-### 示例 — Xboard 面板
+### 示例 — Xboard / V2Board 面板
 
 ```yaml
-server_type: "xboard"
+server_type: "xboard"                       # 或 "v2board"
 api_host: "https://xboard.example.com"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
-node_type: "vless"
+node_type: "vless"                          # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive
 levals_key: "YOUR_LICENSE_KEY"
 
-core:
-  engine: native
-```
-
-### 示例 — V2Board 面板
-
-```yaml
-server_type: "v2board"
-api_host: "https://v2board.example.com"
-api_key: "YOUR_NODE_TOKEN"
-node_id: 1
-node_type: "trojan"
-levals_key: "YOUR_LICENSE_KEY"
-
+udp_fullcone: true
 core:
   engine: native
 ```
@@ -489,15 +592,21 @@ rules:
     block: true                # 完全拦截解析
 ```
 
-## 路由规则（可选）
+## 审计与白名单规则（可选）
 
-将 `routes.yml` 放在 `/etc/levals-node/` 目录下：
+将 `routes.yml` 放在 `/etc/levals-node/` 目录下（或直接在 Levals 面板远程配置）：
 
 ```yaml
 settings:
   block_quic: true             # 拦截 QUIC/HTTP3（UDP 443）— 强制 TCP
   block_bt: true               # 拦截 BitTorrent 流量
   block_private: true          # 拦截私有 IP 访问
+  sniffing: true               # 深度识别 TLS SNI / HTTP Host / QUIC SNI / BitTorrent
+
+whitelist:
+  - type: domain
+    values:
+      - dl.google.com
 
 block:
   - type: domain
@@ -508,29 +617,38 @@ block:
     values:
       - torrent
       - tracker
+  - type: regex
+    values:
+      - '(^|\.)(xmrig|minexmr|nanopool)\.'
   - type: ip
     values: []
 ```
 
-## 单服务器多面板
+## 单进程多节点 / 多面板集成
 
-在配置中使用 `panels:` 替代单面板字段：
+在配置中使用 `nodes:`（自动继承顶层 `server_type` / `api_host` / `api_key`，也可按节点单独覆盖），在单个进程内并发运行多个节点：
 
 ```yaml
-panels:
-  - api_host: "https://panel1.example.com"
-    api_key: "TOKEN_PANEL_1"
-    node_id: 1
-  - api_host: "https://panel2.example.com"
-    api_key: "TOKEN_PANEL_2"
-    node_id: 2
-
+server_type: "levals"
+api_host: "https://panel1.example.com"
+api_key: "API_KEY_PANEL_1"
 levals_key: "YOUR_LICENSE_KEY"
+
+nodes:
+  - node_id: 1
+  - node_id: 2
+    node_type: "trojan"
+  - server_type: "xboard"
+    api_host: "https://panel2.example.com"
+    api_key: "API_KEY_PANEL_2"
+    node_id: 5
+    node_type: "vless"
+
 core:
   engine: native
 ```
 
-> **注意：** 请确保每个面板的节点使用不同的 `server_port`，以避免端口冲突。
+> **注意：** 请确保每个节点使用不同的 `server_port`，以避免端口冲突。
 
 ## 支持面板
 
@@ -617,23 +735,30 @@ lvnode config -e     # hoặc: nano /etc/levals-node/config.yml
 lvnode restart
 ```
 
-**Cách 2 — Tự động điền cấu hình trong một lệnh:**
+**Cách 2 — Tự động điền cấu hình trong một lệnh (cờ dòng lệnh):**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh) \
-  --panel-url https://your-panel.com \
-  --token YOUR_NODE_TOKEN \
+  --server-type levals \
+  --api-host https://your-panel.com \
+  --api-key YOUR_API_KEY \
   --node-id 1 \
-  --license YOUR_LICENSE_KEY
+  --node-type vless \
+  --levals-key YOUR_LICENSE_KEY
 ```
 
-*(Nếu dùng Xboard / V2Board, thêm `--panel-kind xboard --node-type vless`)*
+*(Nếu dùng Xboard / V2Board, đổi `--server-type xboard` hoặc `--server-type v2board` và chọn đúng giao thức ở `--node-type`)*
 
 **Cách 3 — Dùng biến môi trường:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/harryngne/levals-node-dist/main/install.sh | \
-  PANEL_URL=https://your-panel.com TOKEN=YOUR_TOKEN NODE_ID=1 LEVALS_KEY=YOUR_LICENSE bash
+  SERVER_TYPE=levals \
+  API_HOST=https://your-panel.com \
+  API_KEY=YOUR_API_KEY \
+  NODE_ID=1 \
+  NODE_TYPE=vless \
+  LEVALS_KEY=YOUR_LICENSE_KEY bash
 ```
 
 ## Cấu hình
@@ -646,53 +771,90 @@ File cấu hình: `/etc/levals-node/config.yml`
 |--------|----------|-------|
 | `server_type` | Không | Loại panel: `levals` (mặc định) / `xboard` / `v2board` |
 | `api_host` | Có | Địa chỉ panel |
-| `api_key` | Có | Token giao tiếp node từ panel |
-| `node_id` | Có | ID node trên panel (hoặc dùng mảng `nodes:` / `machine_id`) |
-| `node_type` | Chỉ Xboard | Giao thức: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
+| `api_key` | Có | Khoá giao tiếp API node từ panel |
+| `node_id` | Có | ID node trên panel (hoặc dùng `machine_id` / mảng `nodes:`) |
+| `machine_id` | Không | ID máy chế độ Machine trên Levals panel (tự nhận và chạy mọi node gắn vào máy) |
+| `node_type` | Xboard/V2Board | Giao thức: `shadowsocks` / `vmess` / `trojan` / `vless` / `hysteria` / `tuic` / `anytls` / `mieru` / `naive` |
 | `levals_key` | Có | Giấy phép phần mềm (khác với `api_key`) |
+| `nodes` | Không | Chạy tích hợp nhiều nút / nhiều panel đồng thời trong 1 tiến trình duy nhất |
 | `udp_fullcone` | Không | Bật UDP FullCone NAT chuẩn RFC 3489 cho mọi giao thức (mặc định: `true`) |
 | `auto_out_ip` | Không | Máy nhiều IP: tự động chọn IP đầu ra trùng với IP đầu vào mà khách kết nối tới |
+| `send_through` | Không | Ép cố định địa chỉ IP nguồn đi ra Internet |
 | `proxy_protocol` | Không | Giải mã PROXY Protocol v1/v2 trên cổng TCP để lấy IP thực của người dùng |
-| `limit` | Không | Giới hạn tốc độ cố định + động, giới hạn kết nối TCP, IP & thiết bị mỗi user |
-| `redis` | Không | Đồng bộ giới hạn IP, TCP & thiết bị toàn cầu qua Redis (`addr`, `password`, `db`, `tls`) |
+| `limit` | Không | Giới hạn tốc độ cố định + động (`dynamic_speed`), giới hạn kết nối TCP, IP & thiết bị mỗi user |
+| `redis` | Không | Đồng bộ giới hạn IP, TCP & thiết bị toàn cầu qua Redis (`enable`, `addr`, `username`, `password`, `db`, `tls`, `key_prefix`, `expiry_sec`) |
+| `sniffing` | Không | Nhận diện lưu lượng (`enabled`, `route_only`, `dest_override`, `domains_excluded`) — bật/tắt trực tiếp trên Web Panel |
+| `core` | Không | Nhân mạng Rust thuần (`engine: native`) |
+| `config_dir` | Không | Thư mục lưu đệm trạng thái & chứng chỉ (mặc định `/etc/levals-node`) |
+| `log` | Không | Mức log `level` (`trace`\|`debug`\|`info`\|`warn`\|`error`) và đường dẫn `access` log tuỳ chọn |
+| `acme` | Không | Thông tin xác thực ACME DNS-01 cục bộ (`dns_provider`, `cf_token`) |
 
-### Ví dụ — Levals Panel
+### Ví dụ `config.yml` đầy đủ — Levals Panel
 
 ```yaml
 server_type: "levals"
 api_host: "https://dash.levals.org"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
+# machine_id: 1
+# node_type: "vless"
 levals_key: "YOUR_LICENSE_KEY"
+
+udp_fullcone: true
+auto_out_ip: false
+# send_through: "203.0.113.10"
+proxy_protocol: false
+
+limit:
+  speed_limit: 0
+  user_tcp_limit: 0
+  user_ip_limit: 0
+  user_device_limit: 0
+  dynamic_speed:
+    enable: false
+    traffic_mb: 500
+    periodic_sec: 60
+    limit_mbps: 20
+    expire_sec: 300
+
+redis:
+  enable: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  tls: false
+  key_prefix: "lvnode"
+  expiry_sec: 60
+
+sniffing:
+  enabled: true
+  route_only: false
+  dest_override: ["tls", "http", "quic", "fakedns"]
+  domains_excluded:
+    - "courier.push.apple.com"
 
 core:
   engine: native
+
+config_dir: "/etc/levals-node"
+
+log:
+  level: "info"
+  # access: "/etc/levals-node/access.log"
 ```
 
-### Ví dụ — Xboard Panel
+### Ví dụ — Xboard / V2Board Panel
 
 ```yaml
-server_type: "xboard"
+server_type: "xboard"                       # hoặc "v2board"
 api_host: "https://xboard.example.com"
-api_key: "YOUR_NODE_TOKEN"
+api_key: "YOUR_API_KEY"
 node_id: 1
-node_type: "vless"
+node_type: "vless"                          # shadowsocks|vmess|trojan|vless|hysteria|tuic|anytls|mieru|naive
 levals_key: "YOUR_LICENSE_KEY"
 
-core:
-  engine: native
-```
-
-### Ví dụ — V2Board Panel
-
-```yaml
-server_type: "v2board"
-api_host: "https://v2board.example.com"
-api_key: "YOUR_NODE_TOKEN"
-node_id: 1
-node_type: "trojan"
-levals_key: "YOUR_LICENSE_KEY"
-
+udp_fullcone: true
 core:
   engine: native
 ```
@@ -759,15 +921,21 @@ rules:
     block: true                # Chặn hoàn toàn, không phân giải
 ```
 
-## Route & Rules (Tùy chọn)
+## Quy tắc Kiểm toán & Danh sách trắng (Tùy chọn)
 
-Đặt file `routes.yml` trong `/etc/levals-node/`:
+Đặt file `routes.yml` trong `/etc/levals-node/` (hoặc cấu hình trực tiếp từ xa trên Levals Panel):
 
 ```yaml
 settings:
   block_quic: true             # Chặn QUIC/HTTP3 (UDP 443) — ép dùng TCP
   block_bt: true               # Chặn lưu lượng BitTorrent
   block_private: true          # Chặn truy cập dải IP nội bộ
+  sniffing: true               # Nhận diện TLS SNI / HTTP Host / QUIC SNI / BitTorrent DPI
+
+whitelist:
+  - type: domain
+    values:
+      - dl.google.com
 
 block:
   - type: domain
@@ -778,29 +946,38 @@ block:
     values:
       - torrent
       - tracker
+  - type: regex
+    values:
+      - '(^|\.)(xmrig|minexmr|nanopool)\.'
   - type: ip
     values: []
 ```
 
-## Nhiều panel trên một máy chủ
+## Đa nút / Nhiều panel trên 1 tiến trình duy nhất
 
-Dùng `panels:` thay cho cấu hình panel đơn:
+Dùng `nodes:` (tự động kế thừa `server_type` / `api_host` / `api_key` cấp gốc, hoặc khai báo riêng từng mục) để chạy nhiều nút đồng thời trong cùng 1 tiến trình `levals-node`:
 
 ```yaml
-panels:
-  - api_host: "https://panel1.example.com"
-    api_key: "TOKEN_PANEL_1"
-    node_id: 1
-  - api_host: "https://panel2.example.com"
-    api_key: "TOKEN_PANEL_2"
-    node_id: 2
-
+server_type: "levals"
+api_host: "https://panel1.example.com"
+api_key: "API_KEY_PANEL_1"
 levals_key: "YOUR_LICENSE_KEY"
+
+nodes:
+  - node_id: 1
+  - node_id: 2
+    node_type: "trojan"
+  - server_type: "xboard"
+    api_host: "https://panel2.example.com"
+    api_key: "API_KEY_PANEL_2"
+    node_id: 5
+    node_type: "vless"
+
 core:
   engine: native
 ```
 
-> **Lưu ý:** Đảm bảo mỗi panel dùng `server_port` khác nhau để tránh xung đột cổng.
+> **Lưu ý:** Đảm bảo mỗi nút dùng `server_port` khác nhau để tránh xung đột cổng.
 
 ## Panel hỗ trợ
 
